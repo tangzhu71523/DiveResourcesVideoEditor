@@ -23,6 +23,7 @@ node_modules/
 CLAUDE*
 AGENTS.md
 *.md
+!/README.md
 
 # --- Job-folder artifacts (created at runtime by pipeline) ---
 # All app-generated files live under <job>/_diveedit/ now.
@@ -58,6 +59,5 @@ Thumbs.db
 # --- Dev-only artifacts (not shipped, not pushed) ---
 dev/
 tests/
-requirements*.txt
 *.bat
 .runtime-stress-venv/
