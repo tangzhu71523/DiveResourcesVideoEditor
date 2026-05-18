@@ -7,10 +7,12 @@ It helps import raw job videos, detect spoken inspection sections, build a revie
 Download the latest installer from the [Releases](https://github.com/tangzhu71523/DiveResourcesVideoEditor/releases) page:
 
 ```text
-DiveEdit-Setup-0.1.0.exe
+DiveEdit-Setup-0.1.1.exe
 ```
 
 The installer ships the app runtime. Python, Node.js, and development tools are not required for normal use.
+
+DiveEdit is released under the MIT License.
 
 ## Notes
 
