@@ -11,7 +11,7 @@ Three modes, dispatched by first sys.argv slot:
                      open a pywebview window pointed at it.
 
 Both `runner.py` and `audio.py` already detect sys.frozen and emit the
-right sentinel — see those files for the call sites.
+right sentinel; see those files for the call sites.
 """
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ import time
 from contextlib import closing
 
 
-# ── subprocess hardening (Windows) ─────────────────────────────────
+# Subprocess hardening (Windows)
 # Frozen windowed exes spawn child processes with attached consoles by
-# default — every nvidia-smi / ffmpeg / powershell call flashes a black
+# default; every nvidia-smi / ffmpeg / powershell call flashes a black
 # cmd window. /api/health fires nvidia-smi on every request, and the
-# WebView2 focus events trigger frequent re-fetches → users see a
+# WebView2 focus events trigger frequent re-fetches, so users see a
 # strobing console box.
 #
 # Patch subprocess.Popen so any child without an explicit creationflags
@@ -45,13 +45,13 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
 
     subprocess.Popen.__init__ = _hidden_popen_init  # type: ignore[method-assign]
 
-    # ── stderr/stdout safety net ─────────────────────────────────────
+    # stderr/stdout safety net
     # PyInstaller's windowed bootloader (runw.exe) sometimes leaves
     # sys.stderr / sys.stdout pointing at an invalid handle. Subsequent
     # writes raise OSError [Errno 22] Invalid argument. Replace them
     # with NUL devices so library code (uvicorn logger, ctranslate2
     # init prints, etc.) doesn't crash. Worker subprocesses still
-    # receive the parent's PIPE through Popen — this only patches the
+    # receive the parent's PIPE through Popen; this only patches the
     # local handles when they're degenerate.
     import io as _io
     if sys.stderr is None or not hasattr(sys.stderr, "write"):
@@ -65,15 +65,12 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
         except OSError:
             sys.stdout = _io.StringIO()
 
-    # ── CUDA detection → device override ─────────────────────────────
+    # CUDA detection and device override
     # Look-up order:
-    #   1. cudart64_12.dll already on system PATH (user installed CUDA
-    #      Toolkit themselves) → use as-is.
-    #   2. <install_dir>\cuda\cudart64_12.dll (bootstrap.ps1 downloaded
-    #      the cu12 nvidia-* wheels at install time) → register that
-    #      directory with add_dll_directory + PATH so ctranslate2 can
-    #      LoadLibrary against it.
-    #   3. None of the above → set DIVE_FORCE_CPU=1; audio.py will
+    #   1. %LOCALAPPDATA%\DiveEdit\cuda, prepared by setup bootstrap.
+    #   2. <install_dir>\cuda, kept for older local installs.
+    #   3. cudart64_12.dll already on system PATH.
+    #   4. None of the above: set DIVE_FORCE_CPU=1; audio.py will
     #      spawn whisper subprocess with device='cpu', avoiding the
     #      ctranslate2 delay-load that would crash with rc=0xC0000409.
     import ctypes
@@ -97,69 +94,11 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
         os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
         return _try_load_cudart()
 
-    def _register_spec_bundle_dirs() -> bool:
-        _meipass = getattr(sys, "_MEIPASS", None)
-        if not _meipass:
-            return False
-        _spec_root = Path(_meipass) / "nvidia"
-        any_dir = False
-        for _sub in ("cublas", "cuda_nvrtc", "cuda_runtime", "nvjitlink", "cudnn"):
-            _bd = _spec_root / _sub / "bin"
-            if _bd.is_dir():
-                any_dir = True
-                if hasattr(os, "add_dll_directory"):
-                    try:
-                        os.add_dll_directory(str(_bd))
-                    except OSError:
-                        pass
-                os.environ["PATH"] = str(_bd) + os.pathsep + os.environ.get("PATH", "")
-        return any_dir and _try_load_cudart()
-
-    # Prefer the CUDA DLL generation bundled with this build over any system
-    # CUDA on PATH. System CUDA may be a different minor version than the
-    # ctranslate2 wheel this app was frozen with.
-    _cuda_ok = _register_spec_bundle_dirs()
-    _cuda_source = "spec_bundle" if _cuda_ok else "none"
+    _cuda_ok = False
+    _cuda_source = "none"
 
     if not _cuda_ok:
-        # Tier 2: spec-bundled (the ~700MB cu12 DLL set the spec puts
-        # under <_MEIPASS>/nvidia/<sub>/bin/ via _collect_nvidia_dlls).
-        # This is the "one-time solve" — a fresh frozen build already
-        # contains everything ctranslate2 needs to run on GPU; user
-        # never has to install CUDA Toolkit or run setup-gpu.bat.
-        _meipass = getattr(sys, "_MEIPASS", None)
-        if _meipass:
-            _spec_root = Path(_meipass) / "nvidia"
-            # cudnn included so ctranslate2's delay-loaded cudnn_ops64_9.dll
-            # resolves at generate-time. Without it whisper crashes mid-run.
-            for _sub in ("cublas", "cuda_nvrtc", "cuda_runtime", "nvjitlink", "cudnn"):
-                _bd = _spec_root / _sub / "bin"
-                if _bd.is_dir():
-                    if hasattr(os, "add_dll_directory"):
-                        try:
-                            os.add_dll_directory(str(_bd))
-                        except OSError:
-                            pass
-                    os.environ["PATH"] = str(_bd) + os.pathsep + os.environ.get("PATH", "")
-            if _try_load_cudart():
-                _cuda_ok = True
-                _cuda_source = "spec_bundle"
-
-    if not _cuda_ok:
-        _cuda_ok = _try_load_cudart()
-        _cuda_source = "system_path" if _cuda_ok else "none"
-
-    if not _cuda_ok:
-        # Tier 3: legacy bundled-next-to-exe location (setup-gpu.bat
-        # against InstallDir, pre-LOCALAPPDATA migration).
-        _exe_dir = Path(sys.executable).resolve().parent
-        if _try_register_dir(_exe_dir / "cuda"):
-            _cuda_ok = True
-            _cuda_source = "bundled"
-
-    if not _cuda_ok:
-        # Tier 4: persistent user-data dir (bootstrap.ps1 / current
-        # setup-gpu.bat download target). Survives rebuilds.
+        # Tier 1: pinned runtime prepared by setup bootstrap.
         _appdata = os.environ.get("LOCALAPPDATA")
         if _appdata:
             _persistent = Path(_appdata) / "DiveEdit" / "cuda"
@@ -167,17 +106,24 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
                 _cuda_ok = True
                 _cuda_source = "persistent"
 
-    # spec_bundle | system_path | bundled | persistent | none
+    if not _cuda_ok:
+        # Tier 2: legacy bundled-next-to-exe location (setup-gpu.bat
+        # against InstallDir, pre-LOCALAPPDATA migration).
+        _exe_dir = Path(sys.executable).resolve().parent
+        if _try_register_dir(_exe_dir / "cuda"):
+            _cuda_ok = True
+            _cuda_source = "bundled"
+
+    if not _cuda_ok:
+        _cuda_ok = _try_load_cudart()
+        _cuda_source = "system_path" if _cuda_ok else "none"
+
+    # system_path | bundled | persistent | none
     os.environ["DIVE_CUDA_STATUS"] = _cuda_source
 
-    # ALSO register the persistent dir for cuDNN — independent of cuda
-    # detection. cuDNN no longer ships in the spec bundle (too big for
-    # GitHub push), so the wizard puts it under
-    # %LOCALAPPDATA%\DiveEdit\cuda\ alongside cudart. Without this
-    # registration step the cuDNN gate below fails when tier-2
-    # spec_bundle wins for cudart but cuDNN lives in the persistent
-    # dir → DIVE_FORCE_CPU=1 → whisper goes CPU even though everything
-    # is actually present, just on a path the loader didn't search.
+    # Also register the persistent CUDA dir for cuDNN. Setup downloads
+    # the pinned runtime there when NVIDIA exists; without this loader
+    # path, ctranslate2 can see cudart but still fail when cuDNN loads.
     _appdata = os.environ.get("LOCALAPPDATA")
     if _appdata:
         _persistent = Path(_appdata) / "DiveEdit" / "cuda"
@@ -192,27 +138,27 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
     if not _cuda_ok:
         os.environ["DIVE_FORCE_CPU"] = "1"
 
-    # cuDNN gate. Even when cudart loaded, ctranslate2 will still crash
-    # at first generate() call if cudnn_ops64_9.dll is unreachable —
-    # the rc=0xC0000409 crash is not a Python exception so we cannot
-    # recover from it inside the worker. Fail closed: probe cuDNN here
-    # and fall back to CPU if any of the required DLLs cannot load.
+    # CUDA dependency gate. Even when cudart loaded, ctranslate2 can crash
+    # at first generate() call if cuBLAS/cuDNN is unreachable. Fail closed
+    # and fall back to CPU if any required DLL cannot load.
     if _cuda_ok:
-        _cudnn_required = (
+        _gpu_required = (
+            "cublas64_12.dll",
+            "cublasLt64_12.dll",
             "cudnn64_9.dll",
             "cudnn_ops64_9.dll",
             "cudnn_cnn64_9.dll",
             "cudnn_graph64_9.dll",
         )
-        _cudnn_missing = []
-        for _dll in _cudnn_required:
+        _gpu_missing = []
+        for _dll in _gpu_required:
             try:
                 ctypes.WinDLL(_dll)
             except OSError:
-                _cudnn_missing.append(_dll)
-        if _cudnn_missing:
+                _gpu_missing.append(_dll)
+        if _gpu_missing:
             os.environ["DIVE_FORCE_CPU"] = "1"
-            os.environ["DIVE_CUDNN_STATUS"] = "missing:" + ",".join(_cudnn_missing)
+            os.environ["DIVE_CUDNN_STATUS"] = "missing:" + ",".join(_gpu_missing)
         else:
             os.environ["DIVE_CUDNN_STATUS"] = "ok"
 
@@ -279,7 +225,7 @@ class _PickerApi:
     """JS-exposed native dialog bridge.
 
     PowerShell + System.Windows.Forms.FolderBrowserDialog always renders as
-    a tree control regardless of AutoUpgradeEnabled — that property only
+    a tree control regardless of AutoUpgradeEnabled; that property only
     affects visual styles, not the underlying widget. To get the modern
     Explorer view (IFileOpenDialog with FOS_PICKFOLDERS) we use pywebview's
     native dialog API, which on Windows wraps IFileOpenDialog directly.
@@ -328,19 +274,19 @@ def _hide_console_window() -> None:
 
     spec is built with console=True so subprocess.Popen(stdout=PIPE) keeps
     a usable handle in the child (the windowed bootloader otherwise NULs
-    sys.stdout / sys.stderr unconditionally — that's what was breaking
+    sys.stdout / sys.stderr unconditionally; that's what was breaking
     the runner's progress-line readline loop and the worker's stderr
     writes).
 
     SW_HIDE alone leaves the console window owned by this process, so
-    Windows still shows a taskbar button for it — clicking the button
+    Windows still shows a taskbar button for it; clicking the button
     re-summons the hidden console. FreeConsole detaches our process
     from the console entirely, removing the taskbar entry as well.
 
     After FreeConsole, fd 1/2 dangle, so we re-bind sys.stdout / stderr
     to NUL so library writes (uvicorn logger, etc.) keep working.
     Subprocess children spawned via Popen with stdout=PIPE create their
-    own pipe handles independent of the parent console — unaffected.
+    own pipe handles independent of the parent console, so they are unaffected.
     """
     if sys.platform != "win32":
         return
@@ -368,8 +314,8 @@ def _run_gui() -> int:
     # Console stays visible during boot so the user sees boot progress
     # (silent black box for several seconds otherwise reads as "frozen").
     # We only detach from the console once the webview window has actually
-    # appeared on screen — see _on_window_shown below.
-    print("[DiveEdit] booting…", flush=True)
+    # appeared on screen; see _on_window_shown below.
+    print("[DiveEdit] booting...", flush=True)
     import uvicorn
     import webview
 
@@ -396,7 +342,7 @@ def _run_gui() -> int:
             access_log=False,
         )
 
-    print(f"[DiveEdit] starting backend on {host}:{port}…", flush=True)
+    print(f"[DiveEdit] starting backend on {host}:{port}...", flush=True)
     server_thread = threading.Thread(target=_serve, daemon=True, name="uvicorn")
     server_thread.start()
 
@@ -404,7 +350,7 @@ def _run_gui() -> int:
         sys.stderr.write(f"[fatal] backend did not bind {host}:{port} in 30s\n")
         return 1
 
-    print("[DiveEdit] backend ready, opening window…", flush=True)
+    print("[DiveEdit] backend ready, opening window...", flush=True)
 
     # Single window, no remote debugging exposed. Resizable; minimum size
     # picked to keep the canvas-based UI legible.
@@ -423,20 +369,20 @@ def _run_gui() -> int:
     # `events.shown` (pywebview 4+) so the boot-progress prints above stay
     # visible until the user has the UI in front of them.
     def _on_window_shown() -> None:
-        print("[DiveEdit] window shown — hiding console", flush=True)
+        print("[DiveEdit] window shown; hiding console", flush=True)
         _hide_console_window()
 
     try:
         window.events.shown += _on_window_shown
     except (AttributeError, TypeError):
-        # Older pywebview without events.shown — fall back to hiding
+        # Older pywebview without events.shown: fall back to hiding
         # right after start callback fires (close-enough timing).
         pass
 
     # Maximize at launch so the first-mount canvas baseline is the
     # full screen size. Otherwise the layout sizes itself for the
-    # default 1440×900 startup window, then INPUT/PIPELINE look
-    # squashed when the user later maximizes — they're locked at the
+    # default 1440x900 startup window, then INPUT/PIPELINE look
+    # squashed when the user later maximizes; they're locked at the
     # smaller baseline. Maximizing pre-mount avoids that whole class
     # of "looks deformed at startup" reports.
     def _maximize() -> None:
@@ -444,7 +390,7 @@ def _run_gui() -> int:
             window.maximize()
         except Exception:  # noqa: BLE001
             pass
-        # Fallback for older pywebview without events.shown — hide ~1.5s
+        # Fallback for older pywebview without events.shown: hide ~1.5s
         # after start callback in case the shown event never fires.
         if not getattr(window, "events", None) or not hasattr(window.events, "shown"):
             try:

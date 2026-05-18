@@ -69,6 +69,7 @@ function Resolve-ModelRepo($tier) {
 }
 
 function Test-CudaRuntimeReady {
+    $expectedRuntime = Get-CudaRuntimeVersionStamp
     $dirs = @()
     if ($env:LOCALAPPDATA) {
         $dirs += (Join-Path $env:LOCALAPPDATA "DiveEdit\cuda")
@@ -77,12 +78,54 @@ function Test-CudaRuntimeReady {
         $dirs += (Join-Path $InstallDir "cuda")
     }
     foreach ($d in $dirs) {
-        if ((Test-Path (Join-Path $d "cudart64_12.dll")) -and
-            (Test-Path (Join-Path $d "cudnn_ops64_9.dll"))) {
+        if ((Test-CudaRuntimeDllSetReady $d) -and
+            ((Get-CudaRuntimeVersionStampFromDir $d) -eq $expectedRuntime)) {
             return $true
         }
     }
     return $false
+}
+
+function Get-CudaRuntimePackages {
+    return @(
+        @{ Name = "nvidia-cuda-runtime-cu12"; Version = "12.3.101" },
+        @{ Name = "nvidia-cublas-cu12"; Version = "12.3.4.1" },
+        @{ Name = "nvidia-cuda-nvrtc-cu12"; Version = "12.3.107" },
+        @{ Name = "nvidia-nvjitlink-cu12"; Version = "12.3.101" },
+        @{ Name = "nvidia-cudnn-cu12"; Version = "9.1.0.70" }
+    )
+}
+
+function Get-CudaRuntimeVersionStamp {
+    return ((Get-CudaRuntimePackages) | ForEach-Object { "$($_.Name)==$($_.Version)" }) -join "`n"
+}
+
+function Get-CudaRuntimeVersionStampFromDir($dir) {
+    $versionFile = Join-Path $dir "runtime-version.txt"
+    if (-not (Test-Path $versionFile)) { return "" }
+    return (Get-Content -Raw -LiteralPath $versionFile).Trim()
+}
+
+function Test-CudaRuntimeDllSetReady($dir) {
+    $required = @(
+        "cudart64_12.dll",
+        "cublas64_12.dll",
+        "cublasLt64_12.dll",
+        "cudnn64_9.dll",
+        "cudnn_ops64_9.dll",
+        "cudnn_cnn64_9.dll",
+        "cudnn_graph64_9.dll"
+    )
+    foreach ($dll in $required) {
+        if (-not (Test-Path (Join-Path $dir $dll))) { return $false }
+    }
+    if (-not (Get-ChildItem -Path $dir -Filter "nvrtc64_*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+        return $false
+    }
+    if (-not (Get-ChildItem -Path $dir -Filter "nvJitLink_*.dll" -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+        return $false
+    }
+    return $true
 }
 
 function Detect-ModelTier {
@@ -240,44 +283,40 @@ function Download-CudaRuntime {
 
     $cudaDir = Join-Path $env:LOCALAPPDATA "DiveEdit\cuda"
     $marker = Join-Path $cudaDir "cudart64_12.dll"
-    $cudnnMarker = Join-Path $cudaDir "cudnn_ops64_9.dll"
-    if ((Test-Path $marker) -and (Test-Path $cudnnMarker)) {
-        Write-Ok "CUDA + cuDNN runtime already cached at $cudaDir"
-        return
+    $versionFile = Join-Path $cudaDir "runtime-version.txt"
+    $expectedRuntime = Get-CudaRuntimeVersionStamp
+    if (Test-CudaRuntimeDllSetReady $cudaDir) {
+        if ((Get-CudaRuntimeVersionStampFromDir $cudaDir) -eq $expectedRuntime) {
+            Write-Ok "CUDA + cuDNN runtime already cached at $cudaDir"
+            return
+        }
+        Write-Warn2 "CUDA cache version mismatch - refreshing pinned runtime"
+        Remove-Item -Recurse -Force $cudaDir
     }
 
-    Write-Step "downloading CUDA 12 + cuDNN 9 runtime DLLs (~1.3GB, one-time)"
+    Write-Step "downloading pinned CUDA 12.3 + cuDNN 9 runtime DLLs (~1GB, one-time)"
     New-Item -ItemType Directory -Force -Path $cudaDir | Out-Null
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
 
-    $packages = @(
-        "nvidia-cuda-runtime-cu12",
-        "nvidia-cublas-cu12",
-        "nvidia-cuda-nvrtc-cu12",
-        "nvidia-nvjitlink-cu12",
-        "nvidia-cudnn-cu12"
-    )
-
-    foreach ($pkg in $packages) {
+    $packages = Get-CudaRuntimePackages
+    foreach ($pkgSpec in $packages) {
+        $pkg = $pkgSpec.Name
+        $version = $pkgSpec.Version
         try {
-            $api = "https://pypi.org/pypi/$pkg/json"
+            $api = "https://pypi.org/pypi/$pkg/$version/json"
             $meta = Invoke-RestMethod -Uri $api -UseBasicParsing -TimeoutSec 30
-            $latestVersion = ($meta.releases.PSObject.Properties.Name |
-                Sort-Object { try { [version]$_ } catch { [version]"0.0.0" } } -Descending |
-                Select-Object -First 1)
-            $candidates = $meta.releases.$latestVersion |
-                Where-Object { $_.filename -like "*win_amd64.whl" }
+            $candidates = $meta.urls | Where-Object { $_.filename -like "*win_amd64.whl" }
             if (-not $candidates) {
-                Write-Warn2 "  $pkg has no win_amd64 wheel - skipping"
+                Write-Warn2 "  $pkg $version has no win_amd64 wheel - skipping"
                 continue
             }
             $url = $candidates[0].url
             $size = [math]::Round($candidates[0].size / 1MB, 1)
-            Write-Ok "  $pkg $latestVersion (${size}MB)"
-            $whl = Join-Path $env:TEMP "$pkg.whl"
+            Write-Ok "  $pkg $version (${size}MB)"
+            $whl = Join-Path $env:TEMP "$pkg-$version.whl"
             Invoke-WebRequest -Uri $url -OutFile $whl -UseBasicParsing -TimeoutSec 600
 
-            $extractDir = Join-Path $env:TEMP "extract_$pkg"
+            $extractDir = Join-Path $env:TEMP "extract_$pkg-$version"
             if (Test-Path $extractDir) { Remove-Item -Recurse -Force $extractDir }
             [System.IO.Compression.ZipFile]::ExtractToDirectory($whl, $extractDir)
 
@@ -294,7 +333,8 @@ function Download-CudaRuntime {
         }
     }
 
-    if ((Test-Path $marker) -and (Test-Path $cudnnMarker)) {
+    if (Test-CudaRuntimeDllSetReady $cudaDir) {
+        $expectedRuntime | Out-File -FilePath $versionFile -Encoding utf8 -Force
         Write-Ok "CUDA + cuDNN runtime ready at $cudaDir"
     } elseif (Test-Path $marker) {
         Write-Warn2 "CUDA loaded but cuDNN missing - DiveEdit will run on CPU."

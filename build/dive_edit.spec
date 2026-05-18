@@ -8,48 +8,14 @@
 # Onedir, not onefile: faster startup, simpler ffmpeg / model bundling,
 # and lets the installer script swap individual files without re-extracting.
 
-import os
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
 
-# Make PyInstaller's ctypes scanner see the same CUDA wheel DLLs that we
-# intentionally bundle below. Without this, app.py's cudart probe emits a
-# misleading "required via ctypes not found" warning during build.
-try:
-    import nvidia as _nvidia_pkg
-    _nv_root = Path(_nvidia_pkg.__file__).parent
-    for _sub in ("cuda_runtime", "cublas", "cuda_nvrtc", "nvjitlink"):
-        _bd = _nv_root / _sub / "bin"
-        if _bd.is_dir():
-            os.environ["PATH"] = str(_bd) + os.pathsep + os.environ.get("PATH", "")
-except ImportError:
-    pass
-
 def _collect_nvidia_dlls():
-    """Bundle the CUDA DLL generation that was validated with ctranslate2.
-
-    cuDNN stays external because the full cuDNN 9 set is large and is already
-    prepared by bootstrap.ps1. The remaining CUDA runtime DLLs are small enough
-    to ship and avoid the "latest wheel" drift that broke GPU loading in 0.1.1.
-    """
-    try:
-        import nvidia
-    except ImportError:
-        return []
-    root = Path(nvidia.__file__).parent
-    out = []
-    for sub in ("cublas", "cuda_nvrtc", "cuda_runtime", "nvjitlink"):
-        bin_dir = root / sub / "bin"
-        if not bin_dir.exists():
-            continue
-        for dll in bin_dir.glob("*.dll"):
-            name = dll.name.lower()
-            if "_11.dll" in name or "_118.dll" in name or "_112_" in name:
-                continue
-            out.append((str(dll), f"nvidia/{sub}/bin"))
-    return out
+    """CUDA runtime is prepared by installer bootstrap when NVIDIA exists."""
+    return []
 
 # Bundled data
 # Anything in this list lands next to the exe under the same relative
@@ -141,6 +107,12 @@ excludes = [
     "keras",
     "datasets",
     "accelerate",
+    "nvidia",
+    "nvidia.cublas",
+    "nvidia.cuda_nvrtc",
+    "nvidia.cuda_runtime",
+    "nvidia.cudnn",
+    "nvidia.nvjitlink",
 ]
 
 
