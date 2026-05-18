@@ -4,9 +4,9 @@ The human has already picked which mp4 file is the intro. Whisper's only job
 here is to find when the diver starts and stops talking inside that one file.
 The cover overlay only displays during this [start, end] window.
 
-Whisper runs in an **isolated subprocess** (`whisper_worker.py`) because
-ctranslate2 and OpenCV's CUDA initializations can collide in the same
-process, crashing silently at the C++ level with no Python traceback.
+Whisper runs in batched isolated subprocesses because ctranslate2 and
+OpenCV's CUDA initializations can collide in the same process, crashing
+silently at the C++ level with no Python traceback.
 """
 from __future__ import annotations
 import json

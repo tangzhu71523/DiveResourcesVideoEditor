@@ -2,8 +2,7 @@
 
 Loads the Whisper model ONCE and processes multiple audio files in a
 single subprocess invocation. Skips the ~5-10 second CUDA + model
-initialization cost per file that the single-file `whisper_worker.py`
-pays.
+initialization cost that older per-file worker invocations paid.
 
 Usage:
     python -m dive_edit.analyze.whisper_batch_worker <manifest.json>

@@ -899,10 +899,8 @@ export default function App() {
     return jobMeta.cover_lines
   }, [jobMeta.small_lines, jobMeta.cover_lines])
 
-  // Note: previewOverlayAss / buildOverlayAss were used by jassub canvas;
-  // jassub is now disabled (HTML overlay is the sole renderer) so we no
-  // longer compute the ASS string at preview time. The backend still emits
-  // _overlay.ass at render time for ffmpeg to bake.
+  // The preview uses HTML overlays. The backend still emits _overlay.ass
+  // at render time for ffmpeg to bake.
 
   //  Canvas zoom: Ctrl+wheel, mouse-anchored 
   const [appZoom, setAppZoom] = useState(1)
@@ -1242,10 +1240,8 @@ export default function App() {
     if (stale()) return
     setFiles(fs)
 
-    // Hydrate jobMeta from this folder's job.yaml so cover_lines /
-    // small_lines / target survive UI restarts. Without this the overlay
-    // preview can't render ?buildOverlayAss requires non-empty cover or
-    // watermark text.
+    // Hydrate jobMeta from this folder's job.yaml so cover_lines,
+    // small_lines, and target survive UI restarts.
     const persistedJob = await loadJob(path)
     if (stale()) return
     if (persistedJob) {
@@ -1852,10 +1848,7 @@ export default function App() {
                 isSourcePreview={previewSource !== null}
                 initialPaused={initialLoad}
                 pendingSeek={pendingSeek}
-                // jassub canvas disabled ?HTML overlay is the sole renderer
-                // (it handles cover/small mutual exclusion via showCoverTitle,
-                // whereas makeAssAlwaysOn() inside jassub painted both layers
-                // simultaneously, producing visible overlap).
+                // HTML overlays are the visible preview renderer.
                 overlayAss={null}
                 coverLines={overlayVisible && showCoverTitle ? jobMeta.cover_lines : []}
                 smallLines={overlayVisible && !showCoverTitle ? effectiveSmallLines : []}
