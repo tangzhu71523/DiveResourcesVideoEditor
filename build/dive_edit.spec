@@ -3,71 +3,25 @@
 #     pyinstaller build/dive_edit.spec --noconfirm
 #
 # Produces dist/DiveEdit/ (onedir). Inno Setup wraps that into the
-# installer — see build/installer.iss.
+# installer; see build/installer.iss.
 #
 # Onedir, not onefile: faster startup, simpler ffmpeg / model bundling,
 # and lets the installer script swap individual files without re-extracting.
 
-import os
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
 
-# Inject nvidia/<sub>/bin into build-time PATH so PyInstaller's ctypes
-# binding analyzer can resolve `ctypes.WinDLL("cudart64_12.dll")` in
-# app.py (a runtime probe — the DLL is also bundled via
-# _collect_nvidia_dlls below, but the analyzer searches PATH only and
-# would otherwise emit "Library cudart64_12.dll required via ctypes
-# not found".
-try:
-    import nvidia as _nvidia_pkg
-    _nv_root = Path(_nvidia_pkg.__file__).parent
-    for _sub in ("cuda_runtime", "cublas", "cuda_nvrtc", "nvjitlink", "cudnn"):
-        _bd = _nv_root / _sub / "bin"
-        if _bd.is_dir():
-            os.environ["PATH"] = str(_bd) + os.pathsep + os.environ.get("PATH", "")
-except ImportError:
-    pass
+# GPU runtime DLLs are installed/cached by build/bootstrap.ps1 on CUDA
+# machines. Keep them out of the frozen tree so the installer stays small;
+# app.py falls back to CPU when the runtime cache is not available.
+_BUNDLE_CUDA_RUNTIME = False
 
-# Bundle CUDA 12 minimum runtime DLLs directly into the frozen tree
-# so `release/DiveEdit/DiveEdit.exe` works as GPU-enabled out of the
-# box — no setup-gpu.bat, no installer, no Toolkit. This was the
-# user's stated "one-time solve". Bundle ~700MB total, dominated by
-# cublasLt64_12.dll (526MB).
-#
-# Filtered to the cu12-generation set ctranslate2 4.6 actually loads:
-# cu11 wheels are the wrong ABI; cudnn ships inside the ctranslate2
-# package directory (cudnn64_9.dll); cufft / cusolver are not used by
-# faster-whisper inference, only matrix ops we don't touch.
 def _collect_nvidia_dlls():
-    # cuDNN 9 is intentionally NOT bundled here — the full cudnn 9
-    # DLL set (~600MB) blows past GitHub's per-file/repo push limits.
-    # The wizard (install-time bootstrap.ps1) downloads the
-    # nvidia-cudnn-cu12 wheel to %LOCALAPPDATA%\DiveEdit\cuda\ which
-    # app.py picks up via tier-4 detection. If wizard skipped or
-    # offline → app.py's cuDNN gate flips DIVE_FORCE_CPU=1 so whisper
-    # runs CPU instead of crashing mid-generate with 0xC0000409.
-    try:
-        import nvidia
-    except ImportError:
-        return []
-    root = Path(nvidia.__file__).parent
-    out = []
-    cu12_subs = ("cublas", "cuda_nvrtc", "cuda_runtime", "nvjitlink")
-    for sub in cu12_subs:
-        bin_dir = root / sub / "bin"
-        if not bin_dir.exists():
-            continue
-        for dll in bin_dir.glob("*.dll"):
-            n = dll.name.lower()
-            # Drop cu11-era libs.
-            if "_11.dll" in n or "_118.dll" in n or "_112_" in n:
-                continue
-            out.append((str(dll), f"nvidia/{sub}/bin"))
-    return out
+    return []
 
-# ── Bundled data ─────────────────────────────────────────────────────
+# Bundled data
 # Anything in this list lands next to the exe under the same relative
 # path. Read at runtime via dive_edit.utils.paths.app_root().
 datas = [
@@ -92,7 +46,7 @@ hiddenimports += collect_submodules("fastapi")
 hiddenimports += collect_submodules("oneocr")
 # faster-whisper runtime deps (Requires: av, ctranslate2, huggingface-hub,
 # onnxruntime, tokenizers, tqdm). They were over-excluded earlier under
-# the assumption nothing in dive_edit imported them directly — but
+# the assumption nothing in dive_edit imported them directly, but
 # faster_whisper.audio uses av and faster_whisper.tokenizer uses tokenizers,
 # so excluding either crashes whisper batch at first call.
 hiddenimports += collect_submodules("av")
@@ -119,7 +73,7 @@ datas += collect_data_files("onnxruntime")
 # - paddleocr is a fallback path retained in source but installer-gated;
 #   if you ship a slim build, leave it out and rely on OneOCR alone.
 # - matplotlib / pandas / scipy may be transitive deps from torch utils
-#   we never call at runtime — drop them to shave ~200MB.
+#   we never call at runtime; drop them to shave package size.
 excludes = [
     "paddleocr",
     "paddle",
@@ -157,6 +111,12 @@ excludes = [
     "keras",
     "datasets",
     "accelerate",
+    "nvidia",
+    "nvidia.cublas",
+    "nvidia.cuda_nvrtc",
+    "nvidia.cuda_runtime",
+    "nvidia.cudnn",
+    "nvidia.nvjitlink",
 ]
 
 
@@ -193,7 +153,7 @@ exe = EXE(
                                # progress bar wiring AND the worker stderr
                                # path. GUI mode hides the console window
                                # at runtime via ShowWindow(GetConsoleWindow,
-                               # SW_HIDE) in app.py — see _hide_console().
+                               # SW_HIDE) in app.py; see _hide_console().
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,

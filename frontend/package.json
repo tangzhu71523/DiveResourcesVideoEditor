@@ -1,7 +1,7 @@
 {
   "name": "dive-edit-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,6 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "clsx": "^2.1.1",
-    "jassub": "^2.5.0",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

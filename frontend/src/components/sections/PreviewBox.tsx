@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { SkipBack, SkipForward, Play, Pause, Volume2, VolumeX, Film, Maximize2, Minimize2 } from 'lucide-react'
-import JASSUB from 'jassub'
-import jassubWorkerUrl from 'jassub/dist/wasm/jassub-worker.js?url'
-import jassubWasmUrl from 'jassub/dist/wasm/jassub-worker.wasm?url'
-import jassubModernWasmUrl from 'jassub/dist/wasm/jassub-worker-modern.wasm?url'
 import { useLang } from '@/i18n/useLang'
 import type { LogoOverlay, OverlayElement, Segment } from '@/types/edl'
 import { DEFAULT_COVER_OVERLAY, DEFAULT_SMALL_OVERLAY } from '@/types/edl'
 import Tooltip from '../ui/Tooltip'
-import { makeAssAlwaysOn } from '@/lib/overlayAss'
 import { getPreviewCacheStatus, loadSettings, previewCacheMp4Url, saveSettings, startPreviewCache } from '@/lib/api'
 import type { PreviewCacheStatus } from '@/lib/api'
 import { lockTextSelect, unlockTextSelect } from '@/lib/dragLock'
@@ -19,7 +14,7 @@ import { lockTextSelect, unlockTextSelect } from '@/lib/dragLock'
 //     ├─ black 16:9 video area (flex-1, centered)
 //     └─ controls row (padding 8 12, gap 6):
 //          skipBack · play(blue) · skipFwd · "mm:ss / mm:ss" · progress · sep · 1× · mute
-// jassub overlay and API wiring added on top of the v5 visual.
+// HTML overlay and API wiring added on top of the v5 visual.
 
 interface Props {
   segment: Segment | null
@@ -28,10 +23,7 @@ interface Props {
   isSourcePreview?: boolean
   initialPaused?: boolean
   pendingSeek?: { offset: number; nonce: number } | null
-  overlayAss?: string | null
-  // HTML overlay (independent of jassub/ASS) — always renders so the user
-  // sees the title + watermark even when the WASM/canvas path falls flat
-  // on segment_stream playback.
+  // HTML overlay renders cover and watermark text directly.
   coverLines?: string[]
   smallLines?: string[]
   coverOverlay?: OverlayElement
@@ -100,7 +92,7 @@ function fmt(sec: number): string {
 }
 
 export default function PreviewBox({
-  segment, pendingSeek, overlayAss, onNext, onPlayheadChange, onPlayingChange, isSourcePreview, initialPaused,
+  segment, pendingSeek, onNext, onPlayheadChange, onPlayingChange, isSourcePreview, initialPaused,
   coverLines = [], smallLines = [],
   coverOverlay = DEFAULT_COVER_OVERLAY,
   smallOverlay = DEFAULT_SMALL_OVERLAY,
@@ -113,7 +105,6 @@ export default function PreviewBox({
 }: Props) {
   const { t } = useLang()
   const videoRef = useRef<HTMLVideoElement>(null)
-  const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
   const fullscreenHostRef = useRef<HTMLDivElement>(null)
   // Live-measure the 16:9 preview area so we can convert screen-px deltas
   // back into 1080-baseline overlay values during drag.
@@ -790,25 +781,6 @@ export default function PreviewBox({
     seekTo(pendingSeek.offset)
   }, [pendingSeek, seekTo])
 
-  // jassub overlay
-  useEffect(() => {
-    if (!overlayAss) return
-    const canvas = overlayCanvasRef.current
-    const video = videoRef.current
-    if (!canvas || !video) return
-    let instance: JASSUB | null = null
-    try {
-      instance = new JASSUB({
-        video, canvas,
-        subContent: makeAssAlwaysOn(overlayAss),
-        workerUrl: jassubWorkerUrl,
-        wasmUrl: jassubWasmUrl,
-        modernWasmUrl: jassubModernWasmUrl,
-      })
-    } catch { instance = null }
-    return () => { try { instance?.destroy() } catch { /* noop */ } }
-  }, [overlayAss, videoSrc])
-
   const displayElapsed = virtualOffset + currentTime
   const progress = segDuration > 0 ? (displayElapsed / segDuration) * 100 : 0
   const finishNativeSegment = useCallback(() => {
@@ -1170,10 +1142,6 @@ export default function PreviewBox({
               }}
             />
             )}
-            <canvas
-              ref={overlayCanvasRef}
-              className="absolute inset-0 w-full h-full pointer-events-none z-10"
-            />
             {!videoSrc && segment && (
               <div
                 className="absolute inset-0 z-20 flex items-center justify-center"
@@ -1352,10 +1320,6 @@ export default function PreviewBox({
             })()}
 
             {/* HTML overlay — direct render of cover_lines + small_lines.
-                Independent of jassub/ASS so the user always sees the
-                overlay, even when WASM init or segment_stream timing
-                misalign would hide the canvas-based one.
-
                 Double-click a text block to arm it — handles appear and
                 drag becomes active:
                   body         → position

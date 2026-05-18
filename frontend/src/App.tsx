@@ -1849,7 +1849,6 @@ export default function App() {
                 initialPaused={initialLoad}
                 pendingSeek={pendingSeek}
                 // HTML overlays are the visible preview renderer.
-                overlayAss={null}
                 coverLines={overlayVisible && showCoverTitle ? jobMeta.cover_lines : []}
                 smallLines={overlayVisible && !showCoverTitle ? effectiveSmallLines : []}
                 coverOverlay={coverOverlay}
