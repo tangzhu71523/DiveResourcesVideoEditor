@@ -1,0 +1,135 @@
+# Dive Video Auto-Editor — global defaults
+# Per-job overrides live in <job_folder>/job.yaml
+
+# ── Visual assets ────────────────────────────────────────────
+assets:
+  # font_path: any TrueType font file. Defaults to the Arial Bold that
+  # ships with Windows so a stock machine works without extra setup.
+  font_path: "C:/Windows/Fonts/arialbd.ttf"
+  # logo_path: relative to the project root in dev / app_root() in
+  # frozen builds. Override with an absolute path here if shipping a
+  # different brand.
+  logo_path: "assets/Diveresources Logo.png"
+
+# ── Cover (big text on intro) ────────────────────────────────
+# font_size 72 with 22 line_spacing = 94 px / line. 7 lines ≈ 658 px
+# which fills most of a 1080 p frame vertically while keeping the
+# widest line ("JOB SCOPE: UNDERWATER HULL INSPECTION", ~40 chars)
+# inside the 1920 px width for bold Arial.
+cover:
+  font_size: 72
+  line_spacing: 22
+  font_color: "white"
+  border_color: "black"
+  border_width: 4
+
+# ── Body overlay (small text + logo on main footage) ─────────
+overlay:
+  # 2026-04-16 bump 22→32 (对齐人工成片可读性)。UI 阶段会切 .ass
+  # 字幕层,到时字号由员工可调,见 memory/project_ui_text_layer_decision.md
+  small_font_size: 32
+  small_line_spacing: 8
+  small_font_color: "white"
+  small_border_color: "black"
+  small_border_width: 2
+  small_xy: [18, 18]              # left-top corner of small text block
+  # Logo aligned visually with the burned-in top-right timestamp line.
+  # On a 1920x1080 frame the monitor timestamp sits around y=18..58,
+  # so the logo top edge at y=14 puts it level with the clock.
+  # logo 默认位置: 距右 40px, top y=27 (logo height=110 → center y=82)
+  # = 2026-05-13 HALO 6 OneOCR 抽帧测量得到 burned-in timestamp center y=82px
+  # (bbox y1=60 y3=104 @ 1920×1080),让 logo 中线对齐时间戳中线、距右 40px。
+  # 任何 aspect ratio 视频统一使用该比例(libass / ffmpeg overlay 表达式按
+  # target frame 缩放,见 ass_builder 的 bx/by 缩放器和 overlay 表达式)。
+  logo_xy: ["W-w-40", 27]
+  logo_max_height: 110
+  # Also draw logo on the intro (cover) segment.
+  logo_on_intro: true
+  # Regions burned in by the dive monitor — advisory only.
+  monitor_avoid:
+    # h bumped 60→160 (2026-04-16) so OneOCR primary triggers. Paddle fallback
+    # still works on tall crops (actually better — more pixels). 旧 60px 保留
+    # 在代码 default 中以防 config 老但不影响运行。
+    timestamp_top_right: { x: 1200, y: 0, w: 720, h: 160 }
+    cam01_bottom_left:   { x: 16,   y: 1000, w: 160, h: 48 }
+
+# ── Time / duration knobs (Interface 3) ──────────────────────
+# Target 60 min with ±10 min tolerance for customer deliverables.
+# Cover title is a FIXED duration (see reference study notes) — we don't
+# try to end it at a natural speech boundary because diver narration is
+# continuous and the report merges into the commentary seamlessly.
+time:
+  target_duration_min: 60
+  min_duration_min: 50
+  max_duration_min: 70
+  cover_duration_sec: 30          # how long the title card is visible
+  intro_lead_in_sec: 10           # silence before first word (stops
+                                  # the cover from clipping "Today is")
+  intro_audio_scan_sec: 600       # max 10 min of intro file fed to whisper
+
+# ── Whisper ──────────────────────────────────────────────────
+# On first run the model is downloaded from Hugging Face to
+# ~/.cache/huggingface/hub/ (~1.5 GB for medium). `device: auto` picks
+# cuda if a working CUDA is detected, otherwise falls back to cpu with
+# int8 quantization. VAD is OFF because underwater comms noise tricks
+# the voice-activity detector into marking valid speech as silence.
+whisper:
+  model: "large-v3-turbo"           # turbo: ~3x faster, similar detection accuracy
+                                   # precision not needed — only speech presence matters
+  device: "auto"                   # auto | cuda | cpu
+  compute_type_gpu: "int8_float16"
+  compute_type_cpu: "int8"
+  language: "en"
+
+# ── Speech lock (primary selection signal) ──────────────────
+# Whisper is the primary content-selection mechanism. Divers narrate
+# section-by-section as they inspect, so the portions worth keeping are
+# the portions where speech is happening.
+#
+# A lock window is placed around every speech burst. A burst groups Whisper
+# words whose gaps are below burst_silence_gap_sec, then padding_sec is
+# applied on both sides. Adjacent padded locks overlap/bridge into one window.
+speech_lock:
+  enabled: true
+  padding_sec: 5                   # fallback fixed padding when dynamic_padding.enabled=false
+  burst_silence_gap_sec: 35.0      # natural pauses up to 35s stay in one burst
+  min_burst_duration_sec: 0.5
+  # bridge_gap_sec omitted: defaults to padding_sec.
+  # Locks separated by padding_sec or less are merged to eliminate micro-jumps.
+
+  # Dynamic padding: optional per-burst confidence-driven lead/trail padding.
+  # padding_sec above remains the fallback. adaptive_padding still uses the
+  # symmetric fallback; dynamic bonuses layer on top when enabled.
+  dynamic_padding:
+    enabled: false
+    pre_pad_default: 5
+    pre_pad_max: 12
+    post_pad_default: 3
+    post_pad_max: 8
+    high_risk_no_speech_prob: 0.7
+    low_confidence_word_prob: 0.4
+    bonus_high_risk: 5
+    bonus_sentence_break: 3
+# ── Intro file auto-detection ────────────────────────────────
+intro_detect:
+  min_score: 2                     # minimum distinct keywords matched
+
+# ── ffmpeg encoder ───────────────────────────────────────────
+# `vcodec: auto` runs a 1-frame h264_nvenc probe at startup. If NVENC is
+# usable we encode with it; otherwise we fall back to libx264 CPU encoding.
+# Set `vcodec: libx264` to force the CPU path (useful for testing).
+encoder:
+  vcodec: "auto"                  # auto | h264_nvenc | libx264
+  hwaccel: "cuda"                 # only used when nvenc is active
+  # NVENC settings
+  nvenc_preset: "p5"
+  nvenc_rc: "vbr"
+  nvenc_cq: 23
+  bitrate: "12M"
+  maxrate: "20M"
+  # libx264 CPU-fallback settings
+  x264_preset: "veryfast"         # ultrafast/superfast/veryfast/fast/medium
+  x264_crf: 23                    # 18–28; lower = higher quality/bigger file
+  # Audio
+  acodec: "aac"
+  abitrate: "192k"

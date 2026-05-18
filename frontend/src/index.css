@@ -1,0 +1,487 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Light theme (paper) ── */
+:root, [data-theme="light"] {
+  --bg-app:       237 234 226;
+  --bg-surface:   247 245 239;
+  --bg-raised:    242 240 234;
+  --bg-sunken:    232 229 222;
+  --border-subtle: 220 216 207;
+  --border-strong: 200 196 187;
+  --text-primary:   11  13  16;
+  --text-secondary: 74  80  88;
+  --text-muted:    154 161 171;
+  --accent-500:     59 130 246;
+  --accent-600:     37  99 235;
+  --success:        34 197  94;
+  --warning:       234 179   8;
+  --danger:        239  68  68;
+  --glass-bg: rgba(247,245,239,0.95);
+  --glass-border: rgba(220,216,207,1);
+  --glass-hover: rgba(242,240,234,1);
+  --glass-blur: 0px;
+  --glass-shadow: 0 1px 4px rgba(120,100,60,0.08), 0 3px 12px rgba(120,100,60,0.05);
+  --glass-shadow-hover: 0 2px 8px rgba(120,100,60,0.12), 0 6px 20px rgba(120,100,60,0.06);
+  --body-bg: rgb(237,234,226);
+  --body-overlay: none;
+  --header-bg: rgb(247,245,239);
+  --header-border: 1px solid rgb(220,216,207);
+  --header-text: rgb(11,13,16);
+  --header-sub: rgb(154,161,171);
+  --section-label: #1e3a5f;
+  --input-bg: rgba(237,234,226,0.6);
+  --input-border: rgba(200,196,187,1);
+  --input-placeholder: rgba(154,161,171,0.7);
+  --chip-bg: rgba(242,240,234,1);
+  --chip-border: rgba(220,216,207,1);
+  --chip-blue-bg: #eff6ff;
+  --chip-blue-color: #1e3a5f;
+  --chip-blue-border: #bfdbfe;
+  --chip-solid-bg: #1e3a5f;
+  --file-row-hover: rgba(242,240,234,1);
+  --file-row-active: #eff6ff;
+  --file-row-active-border: #3b82f6;
+  --btn-bg: rgba(247,245,239,1);
+  --btn-border: rgba(200,196,187,1);
+  --btn-hover: rgba(242,240,234,1);
+  --btn-primary-bg: linear-gradient(135deg, #1e3a5f, #2563eb);
+  --btn-primary-shadow: 0 1px 3px rgba(37,99,235,0.3);
+  --progress-bg: rgba(232,229,222,1);
+  --progress-fill: linear-gradient(90deg, #93c5fd, #1d4ed8);
+  --progress-glow: none;
+  --menu-bg: rgba(247,245,239,0.98);
+  --menu-border: rgba(200,196,187,1);
+  --menu-text: rgb(11,13,16);
+  --menu-hover: rgba(242,240,234,1);
+  --menu-divider: rgba(220,216,207,1);
+  --track-border: #e8e6de;
+  --track-bg: #2a2a2a;
+  --playhead-color: #dc2626;
+  /* Pseudo-terminal syntax tokens (light) — VSCode-ish palette tuned
+     for paper background. action verbs / strings / numbers / success /
+     warn / error / sub-line tone. */
+  --syntax-keyword:   0 102 204;
+  --syntax-string:  163  21  21;
+  --syntax-number:    9 134  88;
+  --syntax-success: 14 124  39;
+  --syntax-warn:   181 137   0;
+  --syntax-error:  160  22  22;
+  --syntax-sub:     90 108 125;
+}
+
+/* ── Dark theme (glass) ── */
+[data-theme="dark"] {
+  --bg-app:       18 22 36;
+  --bg-surface:   25 32 52;
+  --bg-raised:    35 42 65;
+  --bg-sunken:    18 24 42;
+  --border-subtle: 40 48 70;
+  --border-strong: 55 65 90;
+  --text-primary:   240 240 245;
+  --text-secondary: 180 185 200;
+  --text-muted:    120 128 150;
+  --accent-500:     99 145 255;
+  --accent-600:     70 120 240;
+  --success:        52 211 153;
+  --warning:       251 191  36;
+  --danger:        248  87  87;
+  --glass-bg: rgba(255,255,255,0.06);
+  --glass-border: rgba(255,255,255,0.1);
+  --glass-hover: rgba(255,255,255,0.16);
+  --glass-blur: 16px;
+  --glass-shadow: 0 4px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
+  --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  --body-bg: linear-gradient(135deg, #0f1628 0%, #162040 40%, #1a1e3a 70%, #121824 100%);
+  --body-overlay: block;
+  --header-bg: rgba(15,22,40,0.7);
+  --header-border: 1px solid rgba(255,255,255,0.06);
+  --header-text: #ffffff;
+  --header-sub: rgba(255,255,255,0.5);
+  --section-label: rgba(255,255,255,0.5);
+  --input-bg: rgba(255,255,255,0.04);
+  --input-border: rgba(255,255,255,0.1);
+  --input-placeholder: rgba(255,255,255,0.2);
+  --chip-bg: rgba(255,255,255,0.06);
+  --chip-border: rgba(255,255,255,0.1);
+  --chip-blue-bg: rgba(99,145,255,0.12);
+  --chip-blue-color: #93b4ff;
+  --chip-blue-border: rgba(99,145,255,0.2);
+  --chip-solid-bg: rgba(59,130,246,0.6);
+  --file-row-hover: rgba(255,255,255,0.06);
+  --file-row-active: rgba(99,145,255,0.1);
+  --file-row-active-border: #6391ff;
+  --btn-bg: rgba(255,255,255,0.06);
+  --btn-border: rgba(255,255,255,0.12);
+  --btn-hover: rgba(255,255,255,0.1);
+  --btn-primary-bg: linear-gradient(135deg, rgba(59,130,246,0.7), rgba(99,145,255,0.6));
+  --btn-primary-shadow: 0 2px 8px rgba(59,130,246,0.3);
+  --progress-bg: rgba(255,255,255,0.06);
+  --progress-fill: linear-gradient(90deg, #6391ff, #818cf8, #a78bfa);
+  --progress-glow: 0 0 8px rgba(99,145,255,0.4);
+  --menu-bg: rgba(25,30,50,0.85);
+  --menu-border: rgba(255,255,255,0.12);
+  --menu-text: rgba(255,255,255,0.85);
+  --menu-hover: rgba(255,255,255,0.08);
+  --menu-divider: rgba(255,255,255,0.08);
+  --track-border: #1e3a5f;
+  --track-bg: #000000;
+  --playhead-color: #f87171;
+  /* Pseudo-terminal syntax tokens (dark) — VSCode default-ish palette
+     for the deep background. Mirrors the light keys above so the
+     PipelineLogTerminal renders identically structured but theme-
+     appropriate colours. */
+  --syntax-keyword:  86 156 214;
+  --syntax-string: 206 145 120;
+  --syntax-number: 181 206 168;
+  --syntax-success: 78 201 176;
+  --syntax-warn:   220 220 170;
+  --syntax-error:  244 135 113;
+  --syntax-sub:    156 220 254;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    font-size: 13px;
+    background: var(--body-bg);
+    color: rgb(var(--text-primary));
+  }
+  [data-theme="dark"] body::before {
+    content: '';
+    position: fixed;
+    top: -30%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(99,145,255,0.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  [data-theme="dark"] body::after {
+    content: '';
+    position: fixed;
+    bottom: -20%;
+    left: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  *:focus-visible {
+    @apply outline-none ring-2 ring-blue-500/40 ring-offset-1;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
+}
+
+@layer components {
+  /* ── Panel system (from v5 engineering design) ── */
+  .panel, .card-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    box-shadow: var(--glass-shadow);
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--glass-border);
+    background: transparent;
+    flex-shrink: 0;
+    height: 36px;
+  }
+  .panel-header .title {
+    font-weight: 600;
+    font-size: 11px;
+    color: rgb(var(--text-secondary));
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
+  .panel-body::-webkit-scrollbar { width: 8px; height: 8px; }
+  .panel-body::-webkit-scrollbar-thumb { background: rgb(var(--border-strong)); border-radius: 4px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    height: 28px;
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    background: var(--btn-bg);
+    color: rgb(var(--text-primary));
+    font: 500 12.5px/1 'Inter', system-ui, sans-serif;
+    cursor: pointer;
+    transition: background 100ms, border-color 100ms;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  .btn:active { opacity: 0.85; }
+  .btn.primary {
+    background: var(--btn-primary-bg);
+    color: white;
+    border-color: transparent;
+    box-shadow: var(--btn-primary-shadow);
+  }
+  .btn.primary:hover { opacity: 0.9; }
+  .btn.ghost {
+    border-color: transparent;
+    background: transparent;
+    color: rgb(var(--text-muted));
+  }
+  .btn.ghost:hover { background: var(--btn-hover); color: rgb(var(--text-primary)); }
+  .btn.danger { color: rgb(var(--danger)); border-color: rgba(var(--danger) / 0.3); }
+  .btn.danger:hover { background: rgba(var(--danger) / 0.1); }
+  .btn.sm { height: 24px; padding: 3px 8px; font-size: 11.5px; gap: 4px; }
+  .btn.icon { width: 28px; padding: 0; justify-content: center; }
+  .btn.icon.sm { width: 24px; }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn.active {
+    background: var(--btn-primary-bg);
+    color: white;
+    border-color: transparent;
+  }
+  .btn.active:hover { opacity: 0.9; }
+
+  /* ── Inputs ── */
+  .v5-input, .v5-textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--input-border);
+    border-radius: 5px;
+    background: var(--input-bg);
+    color: rgb(var(--text-primary));
+    font: 400 12px/1.5 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    resize: none;
+  }
+  .v5-input::placeholder, .v5-textarea::placeholder { color: var(--input-placeholder); }
+  .v5-input[type="number"]::-webkit-inner-spin-button,
+  .v5-input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .v5-input[type="number"] { -moz-appearance: textfield; }
+  .num-spinner:hover .num-spinner-btns { opacity: 1 !important; }
+  .v5-input:focus, .v5-textarea:focus {
+    outline: none;
+    border-color: rgb(var(--accent-500));
+    box-shadow: 0 0 0 3px rgba(var(--accent-500) / 0.15);
+  }
+  .v5-textarea { line-height: 1.45; }
+
+  /* ── Chip ── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 7px;
+    border: 1px solid var(--chip-border);
+    border-radius: 10px;
+    background: var(--chip-bg);
+    font: 500 10.5px/1 'Inter', system-ui, sans-serif;
+    color: rgb(var(--text-muted));
+    white-space: nowrap;
+  }
+  .chip.blue { background: var(--chip-blue-bg); color: var(--chip-blue-color); border-color: var(--chip-blue-border); }
+  .chip.solid { background: var(--chip-solid-bg); color: white; border-color: transparent; }
+
+  /* ── File row ── */
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: background 80ms;
+  }
+  .file-row:hover { background: var(--file-row-hover); }
+  .file-row.active { background: var(--file-row-active); border-left: 2px solid var(--file-row-active-border); padding-left: 8px; }
+  .file-row:last-child { border-bottom: none; }
+
+  /* ── Progress bar ── */
+  .progress-bar {
+    position: relative;
+    height: 6px;
+    background: var(--progress-bg);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--progress-fill);
+    background-size: 200% 100%;
+    animation: shimmer 2.5s ease infinite;
+    transition: width 0.15s linear;
+    box-shadow: var(--progress-glow);
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── KBD (footer hints) ── */
+  kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    margin: 0 1px;
+    border: 1px solid var(--glass-border);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    font: 500 10px/1.2 'JetBrains Mono', Consolas, monospace;
+    background: var(--glass-bg);
+    color: rgb(var(--text-secondary));
+  }
+
+  /* Legacy compat — keep .card for CollapsibleCard until fully removed */
+  .card {
+    background: rgb(var(--bg-surface));
+    border: 1px solid rgb(var(--border-subtle));
+    border-radius: 6px;
+  }
+}
+
+/* Scrollbar (webkit) */
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-strong));
+  border-radius: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+/* Responsive hide */
+@media (max-width: 900px) { .adapt-hide-md { display: none !important; } }
+@media (max-width: 640px) { .adapt-hide-sm { display: none !important; } }
+
+
+/* Trim handle — default pointer, Shift shows trim cursor */
+.trim-handle { cursor: default; }
+
+/* Spinner animation */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Indeterminate pipeline progress bar — runs while a stage is reported
+   as running but the backend hasn't emitted a [i/N] count line yet
+   (e.g. Whisper batch workers running concurrently). A 35%-wide chunk
+   slides left→right so the bar shows visible motion instead of sitting
+   at 0% until the stage flips to done. */
+@keyframes pipelineIndeterminate {
+  0%   { left: -35%; }
+  100% { left: 100%; }
+}
+
+/* Steps Tracker dot — soft pulse for the currently-running stage. The
+   ring expands and fades while the dot itself stays solid blue. Replaces
+   the old fake-percent progress bar; aligns with the light-mode accent. */
+@keyframes pipelineDotPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+/* Gauge dashboard — rotation for the indeterminate arc. The arc itself
+   is a stroke-dasharray pattern on a fixed circle; we spin the SVG
+   group around its centre to imply work-in-progress. */
+@keyframes gaugeSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* LogoWaveProgress — two sine paths that scroll horizontally to
+   suggest ocean wobble. The paths are 200px wide tiled segments;
+   translating by 25 (one wavelength) loops cleanly. The slow
+   variant runs in reverse on a longer cycle so the front and back
+   waves never align, giving a parallax look. */
+@keyframes waveShift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-25px); }
+}
+@keyframes waveShiftSlow {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-25px); }
+}
+
+/* Pseudo-terminal token classes — render verb / filename / number /
+   etc. spans coloured per the --syntax-* tokens defined for each
+   theme. The PipelineLogTerminal renders one .term-line per matched
+   raw log entry; .term-sub gets the indent + muted tone for child
+   activity (e.g. per-file progress under a stage). */
+.term-line { display: block; user-select: text; }
+.term-line * { user-select: text; }
+.term-line.term-sub { padding-left: 14px; }
+.term-line.term-sev-warn  { /* bg subtly tinted */ }
+.term-line.term-sev-error { /* bg subtly tinted */ }
+.tok-verb  { color: rgb(var(--syntax-keyword)); font-weight: 600; }
+.tok-file  { color: rgb(var(--syntax-string)); }
+.tok-num   { color: rgb(var(--syntax-number)); font-variant-numeric: tabular-nums; }
+.tok-done  { color: rgb(var(--syntax-success)); font-weight: 600; }
+.tok-warn  { color: rgb(var(--syntax-warn)); }
+.tok-err   { color: rgb(var(--syntax-error)); font-weight: 600; }
+.tok-plain { color: rgb(var(--text-secondary)); }
+.term-line.term-sub .tok-plain { color: rgb(var(--syntax-sub)); }
+
+/* While middle-click velocity-pan is active on the timeline, force the
+   all-scroll cursor everywhere so it isn't overridden by child elements
+   that set their own cursor (segments use ew-resize, buttons use pointer,
+   etc.). The class is toggled on document.body by Timeline's pan handler. */
+.timeline-pan-active,
+.timeline-pan-active * {
+  cursor: all-scroll !important;
+}
+
+/* Preview area in fullscreen — keep 16:9 letterbox so the HTML overlay
+   (cover/small text + logo) sits relative to the actual video area, not
+   spilling into the screen's black bars. UA stylesheet sets width/height
+   to 100% with !important; we counter with !important here. */
+[data-preview-area]:fullscreen {
+  width: auto !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  margin: 0 auto !important;
+  /* aspect-ratio still applied via inline style on the element */
+}
+[data-preview-area]:fullscreen::backdrop {
+  background: #000;
+}
+
+/* File-row drag → timeline drop zone highlight. JobImportSection sets
+   body[data-dragging-file] while a row is being dragged; the timeline
+   lane area is tagged [data-lane-drop-zone]. Selector matches both to
+   give a clear "this is the drop target" outline without prop wiring. */
+body[data-dragging-file] [data-lane-drop-zone="true"] {
+  outline: 2px dashed rgb(var(--accent-500));
+  outline-offset: -3px;
+  background: rgba(59, 130, 246, 0.06) !important;
+  transition: background 80ms ease-out;
+}
