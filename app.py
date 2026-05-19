@@ -65,14 +65,10 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
         except OSError:
             sys.stdout = _io.StringIO()
 
-    # CUDA detection and device override
-    # Look-up order:
-    #   1. %LOCALAPPDATA%\DiveEdit\cuda, prepared by setup bootstrap.
-    #   2. <install_dir>\cuda, kept for older local installs.
-    #   3. cudart64_12.dll already on system PATH.
-    #   4. None of the above: set DIVE_FORCE_CPU=1; audio.py will
-    #      spawn whisper subprocess with device='cpu', avoiding the
-    #      ctranslate2 delay-load that would crash with rc=0xC0000409.
+    # CUDA detection and device override.
+    # Keep the 0.1.0 release behavior: prefer the frozen spec-bundled core
+    # CUDA DLLs over the mutable LOCALAPPDATA runtime cache. The cache still
+    # supplies cuDNN and remains a fallback for older installs.
     import ctypes
     from pathlib import Path
 
@@ -123,13 +119,23 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
         os.environ["DIVE_CUDNN_STATUS"] = "skipped"
 
     if not _cuda_ok and not _force_cpu_requested:
-        # Tier 1: pinned runtime prepared by setup bootstrap.
-        _appdata = os.environ.get("LOCALAPPDATA")
-        if _appdata:
-            _persistent = Path(_appdata) / "DiveEdit" / "cuda"
-            if _try_register_dir(_persistent):
+        # Tier 1: PyInstaller spec-bundled core CUDA runtime.
+        _meipass = getattr(sys, "_MEIPASS", None)
+        if _meipass:
+            _spec_root = Path(_meipass) / "nvidia"
+            for _sub in ("cublas", "cuda_nvrtc", "cuda_runtime", "nvjitlink", "cudnn"):
+                _bd = _spec_root / _sub / "bin"
+                if not _bd.is_dir():
+                    continue
+                if hasattr(os, "add_dll_directory"):
+                    try:
+                        os.add_dll_directory(str(_bd))
+                    except OSError:
+                        pass
+                os.environ["PATH"] = str(_bd) + os.pathsep + os.environ.get("PATH", "")
+            if _try_load_cudart():
                 _cuda_ok = True
-                _cuda_source = "persistent"
+                _cuda_source = "spec_bundle"
 
     if not _cuda_ok and not _force_cpu_requested:
         # Tier 2: legacy bundled-next-to-exe location (setup-gpu.bat
@@ -140,10 +146,19 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
             _cuda_source = "bundled"
 
     if not _cuda_ok and not _force_cpu_requested:
+        # Tier 3: pinned runtime prepared by setup bootstrap.
+        _appdata = os.environ.get("LOCALAPPDATA")
+        if _appdata:
+            _persistent = Path(_appdata) / "DiveEdit" / "cuda"
+            if _try_register_dir(_persistent):
+                _cuda_ok = True
+                _cuda_source = "persistent"
+
+    if not _cuda_ok and not _force_cpu_requested:
         _cuda_ok = _try_load_cudart()
         _cuda_source = "system_path" if _cuda_ok else "none"
 
-    # system_path | bundled | persistent | none
+    # spec_bundle | bundled | persistent | system_path | none
     os.environ["DIVE_CUDA_STATUS"] = _cuda_source
 
     # Also register the persistent CUDA dir for cuDNN. Setup downloads

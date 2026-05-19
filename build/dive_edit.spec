@@ -8,14 +8,48 @@
 # Onedir, not onefile: faster startup, simpler ffmpeg / model bundling,
 # and lets the installer script swap individual files without re-extracting.
 
+import os
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
 
+# Put nvidia wheel DLL folders on PATH during analysis so PyInstaller can
+# resolve ctypes.WinDLL("cudart64_12.dll") and friends.
+try:
+    import nvidia as _nvidia_pkg
+    _nv_root = Path(_nvidia_pkg.__file__).parent
+    for _sub in ("cuda_runtime", "cublas", "cuda_nvrtc", "nvjitlink", "cudnn"):
+        _bd = _nv_root / _sub / "bin"
+        if _bd.is_dir():
+            os.environ["PATH"] = str(_bd) + os.pathsep + os.environ.get("PATH", "")
+except ImportError:
+    pass
+
 def _collect_nvidia_dlls():
-    """CUDA runtime is prepared by installer bootstrap when NVIDIA exists."""
-    return []
+    """Bundle the stable core CUDA DLL set used by the 0.1.0 build.
+
+    cuDNN remains install-prepared under LOCALAPPDATA because the full cuDNN
+    set is large, but cuBLAS/cudart/nvrtc/nvjitlink are kept inside the frozen
+    tree so GPU inference does not depend on whatever runtime cache happens to
+    be in the user profile.
+    """
+    try:
+        import nvidia
+    except ImportError:
+        return []
+    root = Path(nvidia.__file__).parent
+    out = []
+    for sub in ("cublas", "cuda_nvrtc", "cuda_runtime", "nvjitlink"):
+        bin_dir = root / sub / "bin"
+        if not bin_dir.exists():
+            continue
+        for dll in bin_dir.glob("*.dll"):
+            n = dll.name.lower()
+            if "_11.dll" in n or "_118.dll" in n or "_112_" in n:
+                continue
+            out.append((str(dll), f"nvidia/{sub}/bin"))
+    return out
 
 # Bundled data
 # Anything in this list lands next to the exe under the same relative
@@ -107,12 +141,7 @@ excludes = [
     "keras",
     "datasets",
     "accelerate",
-    "nvidia",
-    "nvidia.cublas",
-    "nvidia.cuda_nvrtc",
-    "nvidia.cuda_runtime",
     "nvidia.cudnn",
-    "nvidia.nvjitlink",
 ]
 
 
