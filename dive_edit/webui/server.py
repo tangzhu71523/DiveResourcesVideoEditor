@@ -48,6 +48,11 @@ app.add_middleware(
 )
 
 
+@app.on_event("shutdown")
+def _shutdown_running_jobs() -> None:
+    run_manager.cancel_all()
+
+
 # ── Response models ───────────────────────────────────────────────────
 
 class VideoFileDto(BaseModel):

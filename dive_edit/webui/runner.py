@@ -71,6 +71,71 @@ class RunJob:
     current_stage_step: int = 0
 
 
+def _windows_creationflags() -> int:
+    if os.name != "nt":
+        return 0
+    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return flags
+
+
+def _kill_process_tree(proc: subprocess.Popen[str]) -> bool:
+    if proc.poll() is not None:
+        return True
+    killed = False
+    if os.name == "nt":
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            result = subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=flags,
+                check=False,
+            )
+            killed = result.returncode == 0 or proc.poll() is not None
+        except OSError:
+            pass
+    if not killed:
+        try:
+            import psutil  # type: ignore
+
+            root = psutil.Process(proc.pid)
+            children = root.children(recursive=True)
+            for child in children:
+                try:
+                    child.kill()
+                except psutil.Error:
+                    pass
+            try:
+                root.kill()
+            except psutil.Error:
+                pass
+            psutil.wait_procs([root, *children], timeout=3)
+            killed = proc.poll() is not None or not psutil.pid_exists(proc.pid)
+        except Exception:
+            pass
+    if killed:
+        return True
+    try:
+        proc.kill()
+        return True
+    except OSError:
+        return False
+
+
+def _force_kill_if_alive(proc: subprocess.Popen[str]) -> None:
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        _kill_process_tree(proc)
+        return
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
 def _parse_line(line: str, current_step: int) -> tuple[Event | None, int]:
     """Inspect a raw stdout line and return a structured event if it's
     meaningful, plus the updated current_step counter.
@@ -157,6 +222,7 @@ class RunManager:
             env=env,
             cwd=cwd,
             bufsize=1,
+            creationflags=_windows_creationflags(),
         )
 
         if loop is None:
@@ -248,13 +314,15 @@ class RunManager:
         job = self.jobs.get(job_id)
         if job is None or job.proc.poll() is not None:
             return False
-        try:
-            job.proc.terminate()
-            # Grace period then kill if still alive.
-            threading.Timer(5.0, lambda: job.proc.kill() if job.proc.poll() is None else None).start()
-        except OSError:
+        if not _kill_process_tree(job.proc):
             return False
+        threading.Timer(5.0, lambda: _force_kill_if_alive(job.proc)).start()
         return True
+
+    def cancel_all(self) -> None:
+        for job in list(self.jobs.values()):
+            if job.proc.poll() is None:
+                _kill_process_tree(job.proc)
 
     def get(self, job_id: str) -> RunJob | None:
         return self.jobs.get(job_id)

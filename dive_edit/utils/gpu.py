@@ -12,6 +12,8 @@ _WORKERS_CAP = WORKERS_CAP  # backward-compat alias
 CPU_WORKERS_CAP = 4
 _CPU_RAM_RESERVE_GB = 1.5
 _CPU_RAM_PER_WORKER_GB = 1.5
+_GPU_RAM_RESERVE_GB = 4.0
+_GPU_RAM_PER_WORKER_GB = 3.0
 
 
 def _workers_from_free_vram_mb(
@@ -117,6 +119,38 @@ def detect_cpu_workers() -> tuple[int, str]:
     )
 
 
+def detect_gpu_ram_workers() -> tuple[int, str]:
+    """Limit GPU Whisper workers by host RAM, not only VRAM.
+
+    Each GPU worker is a separate frozen process. Even when the model runs on
+    CUDA, the process still needs host RAM for Python, CTranslate2 state,
+    decoded audio, temp WAV bookkeeping, and Windows desktop responsiveness.
+    """
+    cap = max(1, min(WORKERS_CAP, _int_env("DIVE_GPU_WORKERS_CAP", WORKERS_CAP)))
+    reserve_gb = max(2.0, _float_env("DIVE_GPU_RAM_RESERVE_GB", _GPU_RAM_RESERVE_GB))
+    ram_per_worker_gb = max(2.0, _float_env("DIVE_GPU_RAM_PER_WORKER_GB", _GPU_RAM_PER_WORKER_GB))
+    total_ram_gb = _total_ram_gb()
+    available_ram_gb = _available_ram_gb()
+
+    total_cap = cap
+    if total_ram_gb is not None:
+        total_cap = max(1, int((total_ram_gb - reserve_gb) // ram_per_worker_gb))
+
+    available_cap = total_cap
+    if available_ram_gb is not None:
+        available_cap = max(1, int((available_ram_gb - reserve_gb) // ram_per_worker_gb))
+
+    workers = max(1, min(cap, total_cap, available_cap))
+    total_msg = f"{total_ram_gb:.1f}GB" if total_ram_gb is not None else "unknown"
+    available_msg = f"{available_ram_gb:.1f}GB" if available_ram_gb is not None else "unknown"
+    return (
+        workers,
+        f"RAM total={total_msg} available={available_msg} "
+        f"reserve={reserve_gb:.1f}GB per_worker={ram_per_worker_gb:.1f}GB "
+        f"-> workers={workers}",
+    )
+
+
 def select_pipeline_workers(
     *,
     env: Mapping[str, str | None] | None = None,
@@ -145,4 +179,8 @@ def select_pipeline_workers(
     if msg.startswith("nvidia-smi not found") or msg.startswith("nvidia-smi failed"):
         workers, cpu_msg = detect_cpu_workers()
         return workers, f"{msg} | {cpu_msg}"
-    return max(1, int(auto_workers or 1)), msg
+    if status.get("DIVE_GPU_ALLOW_PARALLEL") != "1":
+        return 1, f"{msg} | GPU worker capped at 1"
+    ram_workers, ram_msg = detect_gpu_ram_workers()
+    workers = max(1, min(int(auto_workers or 1), ram_workers))
+    return workers, f"{msg} | {ram_msg} | selected workers={workers}"

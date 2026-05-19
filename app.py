@@ -482,7 +482,14 @@ def _run_gui() -> int:
             except Exception:  # noqa: BLE001
                 _hide_console_window()
 
-    webview.start(_maximize)  # blocks until the window closes
+    try:
+        webview.start(_maximize)  # blocks until the window closes
+    finally:
+        try:
+            from dive_edit.webui.runner import manager as run_manager
+            run_manager.cancel_all()
+        except Exception:  # noqa: BLE001
+            pass
     return 0
 
 
