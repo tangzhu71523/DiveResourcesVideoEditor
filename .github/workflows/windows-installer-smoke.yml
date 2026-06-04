@@ -1,0 +1,164 @@
+name: Windows installer smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  installer-smoke:
+    name: Build and install on clean Windows
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build frozen app
+        run: pyinstaller build/dive_edit.spec --noconfirm
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc build\installer.iss
+
+      - name: Silent install
+        shell: powershell
+        run: |
+          $installer = Resolve-Path "build\Output\DiveEdit-Setup-0.1.1.exe"
+          $installDir = Join-Path $env:RUNNER_TEMP "DiveEdit"
+          $installLog = Join-Path $env:RUNNER_TEMP "diveedit-install.log"
+          $args = @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=""$installDir""",
+            "/LOG=""$installLog""",
+            "/TASKS="
+          )
+          $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content $installLog -ErrorAction SilentlyContinue
+            throw "Installer failed with exit code $($p.ExitCode)"
+          }
+          $exe = Join-Path $installDir "DiveEdit.exe"
+          if (-not (Test-Path $exe)) {
+            Get-Content $installLog -ErrorAction SilentlyContinue
+            throw "Installed DiveEdit.exe was not found"
+          }
+          "DIVEEDIT_INSTALL_DIR=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "DIVEEDIT_INSTALL_LOG=$installLog" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Verify installed paths and cache shape
+        shell: powershell
+        run: |
+          $exe = Join-Path $env:DIVEEDIT_INSTALL_DIR "DiveEdit.exe"
+          $cudaDir = Join-Path $env:LOCALAPPDATA "DiveEdit\cuda"
+          $hfRoot = Join-Path $env:USERPROFILE ".cache\huggingface\hub"
+          $tinyRepo = "Systran/faster-whisper-tiny"
+          & $exe --download-model $tinyRepo
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed exe downloader entrypoint failed"
+          }
+          $modelDir = Join-Path $hfRoot "models--Systran--faster-whisper-tiny"
+          $snap = Get-ChildItem -Path (Join-Path $modelDir "snapshots") -Directory | Select-Object -First 1
+          if (-not $snap) {
+            throw "Tiny model snapshot folder was not created"
+          }
+          $modelBin = Get-Item -LiteralPath (Join-Path $snap.FullName "model.bin") -ErrorAction Stop
+          if ($modelBin.Length -le 0) {
+            throw "Tiny model.bin is empty"
+          }
+          if (($modelBin.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Tiny model.bin is a link/reparse point, not a real file"
+          }
+          $report = @(
+            "install_dir=$env:DIVEEDIT_INSTALL_DIR",
+            "exe=$exe",
+            "exe_exists=$(Test-Path $exe)",
+            "cuda_dir=$cudaDir",
+            "cuda_dir_exists=$(Test-Path $cudaDir)",
+            "hf_root=$hfRoot",
+            "tiny_snapshot=$($snap.FullName)",
+            "tiny_model_bin_length=$($modelBin.Length)",
+            "tiny_model_bin_attributes=$($modelBin.Attributes)"
+          )
+          $out = Join-Path $env:RUNNER_TEMP "diveedit-env-paths.txt"
+          $report | Set-Content -LiteralPath $out -Encoding utf8
+          Get-Content -LiteralPath $out
+          "DIVEEDIT_ENV_REPORT=$out" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Silent uninstall
+        if: always()
+        shell: powershell
+        run: |
+          if (-not $env:DIVEEDIT_INSTALL_DIR) { exit 0 }
+          $uninstaller = Join-Path $env:DIVEEDIT_INSTALL_DIR "unins000.exe"
+          if (Test-Path $uninstaller) {
+            $p = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
+            if ($p.ExitCode -ne 0) {
+              throw "Uninstaller failed with exit code $($p.ExitCode)"
+            }
+          }
+
+      - name: Collect installer logs
+        if: always()
+        shell: powershell
+        run: |
+          $out = "artifacts\installer-smoke"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $logs = @(
+            (Join-Path $env:RUNNER_TEMP "diveedit-install.log"),
+            (Join-Path $env:RUNNER_TEMP "diveedit-env-paths.txt"),
+            "C:\ProgramData\DiveEdit\logs\setup-bootstrap.log"
+          )
+          foreach ($log in $logs) {
+            if (Test-Path $log) {
+              Copy-Item -LiteralPath $log -Destination $out -Force
+            }
+          }
+
+      - name: Upload installer logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-smoke-logs
+          path: artifacts/installer-smoke
+          if-no-files-found: ignore
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiveEdit-Setup-0.1.1
+          path: build/Output/DiveEdit-Setup-0.1.1.exe
+          if-no-files-found: error

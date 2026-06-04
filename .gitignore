@@ -1,0 +1,85 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# --- Node / Vite ---
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/e2e/
+frontend/snap.mjs
+*.tsbuildinfo
+node_modules/
+
+# --- Local assistant / planning state ---
+.agents/
+.claude/
+.claudelog/
+.codex/
+CLAUDE*
+AGENTS.md
+*.md
+!/README.md
+!/TRADEMARKS.md
+!/THIRD_PARTY_NOTICES.md
+!/assets/README.md
+!/frontend/src/assets/README.md
+!/frontend/public/README.md
+
+# --- Job-folder artifacts (created at runtime by pipeline) ---
+# All app-generated files live under <job>/_diveedit/ now.
+_diveedit/
+# Legacy paths (kept here for old job folders that still have them).
+_transcripts/
+_preview_cache/
+_logs/
+_edl.json
+_edl.draft.json
+_overlay.ass
+*.log
+worker_*.log
+
+# --- PyInstaller / Inno Setup output ---
+build/__pycache__/
+build/dive_edit/
+dist/
+dist*/
+release/
+build/Output/
+*.spec.bak
+
+# --- OS noise ---
+Thumbs.db
+.DS_Store
+
+# --- Editor noise ---
+.vscode/
+.idea/
+*.swp
+
+# --- Dev-only artifacts (not shipped, not pushed) ---
+dev/
+tests/
+*.bat
+.runtime-stress-venv/
+_bench_*/
+_scratch_*/
+_release_gate_*/
+_qa_*/
+_installer_qa/
+_dev_server_logs/
+_installed_*/
+_installed_*
+_frozen_*/
+_frozen_*
+_packaged_*/
+_packaged_*
+_cli_*/
+_cli_*
+_tmp_*/
+_tmp_*.png
+_tmp_*.jpg

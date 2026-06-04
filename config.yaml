@@ -1,0 +1,180 @@
+# DiveEdit global defaults.
+# Per-job overrides live in <job_folder>/job.yaml.
+
+assets:
+  # Windows default bold font. Override with any TrueType font path if needed.
+  font_path: "C:/Windows/Fonts/arialbd.ttf"
+  # Relative to project root in development and app_root() in frozen builds.
+  logo_path: "assets/Diveresources Logo.png"
+
+cover:
+  font_size: 72
+  line_spacing: 22
+  font_color: "white"
+  border_color: "black"
+  border_width: 4
+
+overlay:
+  small_font_size: 32
+  small_line_spacing: 8
+  small_font_color: "white"
+  small_border_color: "black"
+  small_border_width: 2
+  small_xy: [18, 18]
+  # Logo position is evaluated by FFmpeg/libass against the target video frame.
+  logo_xy: ["W-w-40", 27]
+  logo_max_height: 110
+  logo_on_intro: true
+  # Burned-in monitor regions used as guidance for OCR / overlay placement.
+  monitor_avoid:
+    timestamp_top_right: { x: 0, y: 0, w: 1920, h: 180 }
+    cam01_bottom_left:   { x: 16,   y: 1000, w: 160, h: 48 }
+
+time:
+  target_duration_min: 60
+  min_duration_min: 50
+  max_duration_min: 70
+  cover_duration_sec: 30
+  intro_lead_in_sec: 10
+  intro_audio_scan_sec: 600
+
+whisper:
+  model: "large-v3-turbo"
+  device: "auto"
+  # wav + standard is the stable path. Direct media/batched mode is faster,
+  # but can create periodic short hallucinations on long noisy footage.
+  input_mode: "wav"
+  inference_mode: "standard"
+  batch_size: 8
+  chunk_sec: 30
+  compute_type_gpu: "int8_float16"
+  compute_type_cpu: "int8"
+  language: "en"
+  vad: "off"
+
+speech_lock:
+  enabled: true
+  padding_sec: 2
+  burst_silence_gap_sec: 10.0
+  min_burst_duration_sec: 0.5
+  bridge_gap_sec: 10.0
+  hallucination_filter:
+    enabled: true
+    low_avg_logprob: -0.55
+    repeated_text_min_count: 8
+    short_segment_max_words: 3
+    short_segment_max_sec: 3.0
+    chunk_sec: 30.0
+    chunk_boundary_tolerance_sec: 1.5
+    blacklist_phrases:
+      - thank you
+      - thank you very much
+      - thanks for watching
+      - please subscribe
+      - like and subscribe
+    whitelist_phrases:
+      - roger
+      - copy
+      - standby
+      - proceed
+      - inspection
+      - hull
+      - sea chest
+      - propeller
+      - rudder
+      - starboard
+      - port
+    pronounce_match:
+      enabled: true
+      min_token_len: 4
+      token_ratio: 0.78
+      phonetic_ratio: 0.72
+      max_length_delta: 3
+  visual_filter:
+    enabled: true
+    sample_frames_per_segment: 3
+    bad_frame_ratio_threshold: 0.67
+    dark_value_max: 35
+    dark_pixel_ratio: 0.85
+    bright_value_min: 245
+    bright_low_saturation_max: 30
+    bright_pixel_ratio: 0.85
+  content_refine:
+    enabled: true
+    weak_max_words: 3
+    weak_max_duration_sec: 12.0
+    dense_keep_words: 8
+    dense_keep_min_wps: 0.18
+    long_keep_sec: 45.0
+    long_term_min_wps: 0.08
+    long_term_min_hits: 2
+    sparse_long_max_wps: 0.08
+    min_score: 1.25
+    min_keep_ratio: 0.45
+    max_drop_ratio: 0.40
+    bridge_strong_gap_sec: 12.0
+    pronounce_match:
+      enabled: true
+      min_token_len: 4
+      token_ratio: 0.78
+      phonetic_ratio: 0.72
+      max_length_delta: 3
+  window_refine:
+    enabled: true
+    min_segment_sec: 45.0
+    window_sec: 15.0
+    min_words: 3
+    min_wps: 0.12
+    min_term_hits: 1
+    merge_gap_sec: 4.0
+    edge_pad_sec: 1.0
+  audio_energy:
+    enabled: true
+    noise_db: -35
+    min_speech_sec: 2.0
+    merge_gap_sec: 10.0
+    bridge_gap_sec: 12.0
+    max_edge_extend_sec: 2.0
+    max_extra_ratio: 0.25
+  minimum_body:
+    enabled: true
+    ratio: 0.30
+    long_source_threshold_sec: 5400
+    long_source_floor_sec: 1800
+  dynamic_padding:
+    enabled: false
+    pre_pad_default: 2
+    pre_pad_max: 12
+    post_pad_default: 2
+    post_pad_max: 8
+    high_risk_no_speech_prob: 0.7
+    low_confidence_word_prob: 0.4
+    bonus_high_risk: 5
+    bonus_sentence_break: 3
+
+intro_detect:
+  min_score: 2
+
+runner:
+  # Stop a stuck pipeline subprocess if it stops printing progress.
+  idle_timeout_sec: 600
+  # Hard cap for one run, even if it keeps printing logs.
+  max_runtime_sec: 28800
+
+encoder:
+  vcodec: "auto"
+  hwaccel: "cuda"
+  nvenc_preset: "p5"
+  nvenc_rc: "vbr"
+  nvenc_cq: 23
+  bitrate: "12M"
+  maxrate: "20M"
+  x264_preset: "veryfast"
+  x264_crf: 23
+  acodec: "aac"
+  abitrate: "192k"
+  stall_timeout_sec: 120
+  chunk_render: true
+  chunk_threshold_segments: 12
+  chunk_max_segments: 10
+  chunk_max_duration_sec: 600

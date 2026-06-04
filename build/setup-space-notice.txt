@@ -1,0 +1,17 @@
+DiveEdit setup prepares external runtime assets during installation.
+
+After files are copied, Setup checks ffmpeg, GPU runtime, and the AI speech
+model on its own progress page. Use the Setup Cancel button to stop preparation.
+
+Recommended before continuing:
+
+- CPU-only computers: at least 6 GB free on the Windows user/cache drive.
+- Eligible NVIDIA GPU computers: at least 10 GB free, because setup may download CUDA/cuDNN runtime files and a Whisper speech model. GPUs below 4096 MB VRAM use the CPU setup.
+
+Setup may download:
+
+- ffmpeg video tools
+- CUDA/cuDNN runtime files for GPU acceleration, only when an NVIDIA GPU passes the Whisper VRAM gate
+- a faster-whisper speech model
+
+These assets are cached so reinstalling is faster. If the computer has limited space, free disk space first, then continue setup.
