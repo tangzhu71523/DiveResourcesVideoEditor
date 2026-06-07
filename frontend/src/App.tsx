@@ -2635,26 +2635,41 @@ export default function App() {
           const topRowHeight = (canvasBase.h - 30) / 2
           const previewControlHeight = 48
           const previewAspect = Math.max(0.75, Math.min(16 / 9, previewVideoAspect || 16 / 9))
-          const previewTargetWidth = Math.max(320, (topRowHeight - previewControlHeight) * previewAspect)
           const topContentWidth = canvasBase.w - 20
           const topGap = 10
           const importBaseWidth = 280
           const inputBaseWidth = 370
-          const pipelineBaseWidth = 240
-          const topBaseWidth = previewTargetWidth
-            + importBaseWidth
-            + inputBaseWidth
-            + pipelineBaseWidth
-            + topGap * 3
-          const distributableSpace = topContentWidth
-            - topBaseWidth
-          const panelExtra = Math.max(0, distributableSpace / 3)
-          const rowOverflow = Math.max(0, topBaseWidth - topContentWidth)
-          const importShrink = Math.ceil(rowOverflow / 2)
-          const inputShrink = rowOverflow - importShrink
+          const pipelineBaseWidth = 260
+          const importMinWidth = 240
+          const inputMinWidth = 330
+          const pipelineMinWidth = 220
+          const previewMinWidth = 380
+          const previewIdealWidth = Math.max(previewMinWidth, (topRowHeight - previewControlHeight) * previewAspect)
+          const basePanelWidth = importBaseWidth + inputBaseWidth + pipelineBaseWidth
+          const minPanelWidth = importMinWidth + inputMinWidth + pipelineMinWidth
+          const previewMaxWithBasePanels = topContentWidth - basePanelWidth - topGap * 3
+          const previewMaxWithMinPanels = topContentWidth - minPanelWidth - topGap * 3
+          const previewTargetWidth = Math.max(
+            320,
+            Math.min(
+              previewIdealWidth,
+              previewMaxWithBasePanels >= previewMinWidth
+                ? previewMaxWithBasePanels
+                : previewMaxWithMinPanels,
+            ),
+          )
+          const panelSpace = Math.max(minPanelWidth, topContentWidth - previewTargetWidth - topGap * 3)
+          const panelExtra = Math.max(0, panelSpace - basePanelWidth) / 3
+          const panelShortage = Math.max(0, basePanelWidth - panelSpace)
+          const importShrinkLimit = importBaseWidth - importMinWidth
+          const inputShrinkLimit = inputBaseWidth - inputMinWidth
+          const pipelineShrinkLimit = pipelineBaseWidth - pipelineMinWidth
+          const importShrink = Math.min(importShrinkLimit, panelShortage * 0.3)
+          const inputShrink = Math.min(inputShrinkLimit, panelShortage * 0.45)
+          const pipelineShrink = Math.min(pipelineShrinkLimit, Math.max(0, panelShortage - importShrink - inputShrink))
           const importPanelWidth = importBaseWidth + panelExtra - importShrink
           const inputPanelWidth = inputBaseWidth + panelExtra - inputShrink
-          const pipelinePanelWidth = pipelineBaseWidth + panelExtra
+          const pipelinePanelWidth = pipelineBaseWidth + panelExtra - pipelineShrink
           const controlPanelWidth = inputPanelWidth + pipelinePanelWidth + topGap
 
           return <>
