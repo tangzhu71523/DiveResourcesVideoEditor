@@ -7,6 +7,7 @@ import textwrap
 from pathlib import Path
 
 from .utils.paths import list_mp4s
+from .utils.process_flags import ffprobe_executable, hidden_subprocess_kwargs
 
 
 def pick_job_folder(initial_dir: str | None = None) -> Path | None:
@@ -214,12 +215,13 @@ def probe_duration_sec(mp4_path: Path) -> float:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
+                ffprobe_executable(), "-v", "error",
                 "-show_entries", "format=duration",
                 "-of", "json",
                 str(mp4_path),
             ],
             capture_output=True, text=True, check=True,
+            **hidden_subprocess_kwargs(),
         )
         data = json.loads(result.stdout or "{}")
         return float(data.get("format", {}).get("duration", 0.0))
@@ -236,13 +238,14 @@ def probe_dimensions(mp4_path: Path) -> tuple[int, int]:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
+                ffprobe_executable(), "-v", "error",
                 "-select_streams", "v:0",
                 "-show_entries", "stream=width,height,display_aspect_ratio,sample_aspect_ratio",
                 "-of", "json",
                 str(mp4_path),
             ],
             capture_output=True, text=True, check=True,
+            **hidden_subprocess_kwargs(),
         )
         data = json.loads(result.stdout or "{}")
         streams = data.get("streams") or []

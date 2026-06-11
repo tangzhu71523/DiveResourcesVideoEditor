@@ -207,6 +207,7 @@ function normalizeSegment(raw: unknown, fallbackLabel = 'HULL'): EDL['segments']
   if (!file || end <= start) return null
   return {
     file,
+    lane_file: typeof obj.lane_file === 'string' && obj.lane_file ? obj.lane_file : undefined,
     start,
     end,
     label: typeof obj.label === 'string' && obj.label ? obj.label : fallbackLabel,

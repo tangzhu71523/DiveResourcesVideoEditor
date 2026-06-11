@@ -95,10 +95,12 @@ const laneFilesForEdl = (
 const timelineFilesForEdl = (files: VideoFile[], edl: EDL | null): VideoFile[] => {
   if (!edl) return files
   const order = new Map<string, number>()
+  const maxEndByKey = new Map<string, number>()
   for (const seg of bodySegs(edl)) {
     const keys = [seg.lane_file, seg.file, fileBase(seg.file)].filter((key): key is string => !!key)
     for (const key of keys) {
       if (!order.has(key)) order.set(key, order.size)
+      maxEndByKey.set(key, Math.max(maxEndByKey.get(key) ?? 0, seg.end))
     }
   }
   const orderedFiles = order.size > 0
@@ -109,21 +111,36 @@ const timelineFilesForEdl = (files: VideoFile[], edl: EDL | null): VideoFile[] =
         return files.indexOf(a) - files.indexOf(b)
       })
     : files
-  const knownPaths = new Set(files.map((f) => f.path))
-  const maxEndByFile = new Map<string, number>()
+  const widenedFiles = orderedFiles.map((file) => {
+    const maxEnd = Math.max(
+      maxEndByKey.get(file.path) ?? 0,
+      maxEndByKey.get(file.name) ?? 0,
+      maxEndByKey.get(fileBase(file.path)) ?? 0,
+    )
+    return maxEnd > file.duration_sec + 0.01
+      ? { ...file, duration_sec: maxEnd }
+      : file
+  })
+  const knownKeys = new Set<string>()
+  for (const file of widenedFiles) {
+    knownKeys.add(file.path)
+    knownKeys.add(file.name)
+    knownKeys.add(fileBase(file.path))
+  }
+  const externalMaxEndByFile = new Map<string, number>()
   for (const seg of segsOf(edl)) {
     if (!seg.file) continue
-    if (knownPaths.has(seg.file)) continue
-    maxEndByFile.set(seg.file, Math.max(maxEndByFile.get(seg.file) ?? 0, seg.end))
+    if (knownKeys.has(seg.file) || knownKeys.has(fileBase(seg.file))) continue
+    externalMaxEndByFile.set(seg.file, Math.max(externalMaxEndByFile.get(seg.file) ?? 0, seg.end))
   }
-  if (maxEndByFile.size === 0) return orderedFiles
-  const external = Array.from(maxEndByFile.entries()).map(([path, maxEnd]) => ({
+  if (externalMaxEndByFile.size === 0) return widenedFiles
+  const external = Array.from(externalMaxEndByFile.entries()).map(([path, maxEnd]) => ({
     name: fileBase(path),
     path,
     duration_sec: Math.max(1, maxEnd),
     size_bytes: 0,
   }))
-  return [...orderedFiles, ...external]
+  return [...widenedFiles, ...external]
 }
 const applyFileOrder = (files: VideoFile[], orderedNames: string[]): VideoFile[] => {
   const order = new Map<string, number>()
@@ -210,6 +227,29 @@ const buildWholeManualEdl = (files: VideoFile[]): EDL =>
       })),
     files,
   )
+const initialPipelineZoom = (edl: EDL, files: VideoFile[]): number => {
+  const body = bodySegs(edl).filter((seg) => seg.end > seg.start)
+  if (body.length === 0) return 1
+  const fileByRef = new Map<string, VideoFile>()
+  for (const file of files) {
+    fileByRef.set(file.path, file)
+    fileByRef.set(file.name, file)
+    fileByRef.set(fileBase(file.path), file)
+  }
+  const laneSet = laneFilesForEdl(edl)
+  let total = 0
+  for (const lane of laneSet) {
+    const file = fileByRef.get(lane) ?? fileByRef.get(fileBase(lane))
+    if (file) total += Math.max(0, file.duration_sec)
+  }
+  if (total <= 0) {
+    const maxEnd = body.reduce((acc, seg) => Math.max(acc, seg.end), 0)
+    total = Math.max(maxEnd, body.reduce((acc, seg) => acc + (seg.end - seg.start), 0))
+  }
+  const firstWindow = body[0]
+  const firstDuration = Math.max(1, firstWindow.end - firstWindow.start)
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, total / (firstDuration * 4)))
+}
 const buildManualEdlFromSourceRanges = (files: VideoFile[], ranges: SourceEDLSegment[]): EDL | null => {
   const segments: Segment[] = []
   for (const range of ranges) {
@@ -1057,6 +1097,10 @@ export default function App() {
   // Forward-ref so addFileToLane / removeLaneFile (declared above commitEdl)
   // can still invoke it. Updated below once commitEdl is constructed.
   const commitEdlRef = useRef<(next: EDL) => void>(() => {})
+  const [timelineZoom, setTimelineZoomRaw] = useState(1.0)
+  const setTimelineZoom = useCallback((z: number) => {
+    setTimelineZoomRaw(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, parseFloat(z.toFixed(2)))))
+  }, [])
   const focusBodySegment = useCallback((nextEdl: EDL, requestedIdx = 0) => {
     const body = bodySegs(nextEdl)
     if (body.length === 0) {
@@ -1106,6 +1150,7 @@ export default function App() {
     setEDL(outputEdl)
     setLaneFiles(laneSet)
     setLaneFileCache(new Map())
+    if (token !== MANUAL_CACHE_TOKEN) setTimelineZoom(initialPipelineZoom(outputEdl, files))
     setSelectedLaneFile(null)
     setSelectedLaneFiles(new Set())
     focusBodySegment(outputEdl)
@@ -1113,7 +1158,7 @@ export default function App() {
       entries: [{ edl: outputEdl, laneFiles: Array.from(laneSet), laneFileCache: [] }],
       cursor: 0,
     })
-  }, [pipelineBaselineEdl, pipelineOutputByToken, setTimelineModeSafe, focusBodySegment])
+  }, [files, pipelineBaselineEdl, pipelineOutputByToken, setTimelineModeSafe, focusBodySegment, setTimelineZoom])
   const openRawFileInTimeline = useCallback((fileName: string) => {
     const file = files.find((item) => item.name === fileName)
     if (!file) return
@@ -1730,11 +1775,6 @@ export default function App() {
     }
   }, [])
 
-
-  const [timelineZoom, setTimelineZoomRaw] = useState(1.0)
-  const setTimelineZoom = useCallback((z: number) => {
-    setTimelineZoomRaw(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, parseFloat(z.toFixed(2)))))
-  }, [])
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [previewSource, setPreviewSource] = useState<PreviewSource | null>(null)
   const [previewFullscreenRequestKey, setPreviewFullscreenRequestKey] = useState<number | null>(null)
@@ -2047,20 +2087,39 @@ export default function App() {
     loadingJobRef.current = false
 
     // Load order:
-    //   1. edl.history.json   (super-undo cursor)
-    //   2. edl.baseline.json  (pipeline output ,deepest undo target)
+    //   1. edl.baseline.json  (pipeline output; wins on project open)
+    //   2. edl.history.json   (manual/session state when no pipeline exists)
     //   3. edl.json + draft   (current job folder state)
     const baseline = await loadEDLBaseline(path)
     if (stale()) return
-    setPipelineBaselineEdl(baseline && edlHasTimeline(baseline) ? baseline : null)
-    setPipelineOutputRecords(baseline && edlHasTimeline(baseline)
+    const baselineToken = `${PIPELINE_OUTPUT_TOKEN_PREFIX}baseline`
+    const baselineReady = baseline !== null && edlHasTimeline(baseline)
+    setPipelineBaselineEdl(baselineReady ? baseline : null)
+    setPipelineOutputRecords(baselineReady
       ? [{
           id: 'baseline',
-          token: `${PIPELINE_OUTPUT_TOKEN_PREFIX}baseline`,
+          token: baselineToken,
           edl: baseline,
           createdAt: Date.now(),
         }]
       : [])
+    if (baselineReady) {
+      const laneSet = laneFilesForEdl(baseline)
+      const firstIdx = bodySegs(baseline).length > 0 ? 0 : null
+      setTimelineModeSafe({ kind: 'pipeline', token: baselineToken })
+      setEDL(baseline)
+      setLaneFiles(laneSet)
+      setLaneFileCache(new Map())
+      setHistoryDoc({
+        entries: [{ edl: baseline, laneFiles: Array.from(laneSet), laneFileCache: [] }],
+        cursor: 0,
+      })
+      setRunPhase('finished')
+      setInitialLoad(true)
+      setTimelineZoom(initialPipelineZoom(baseline, fs))
+      if (firstIdx !== null) focusBodySegment(baseline, firstIdx)
+      return
+    }
     const persistedHistory = await loadEDLHistory(path)
     if (stale()) return
     const existingEdl = await loadEDL(path)
@@ -2072,6 +2131,7 @@ export default function App() {
       const snap = persistedHistory.entries[persistedHistory.cursor]
       const snapCache = snap.laneFileCache ?? []
       const firstIdx = bodySegs(snap.edl).length > 0 ? 0 : null
+      setTimelineModeSafe({ kind: 'manual' })
       setEDL(snap.edl)
       setLaneFiles(laneFilesForEdl(snap.edl, snap.laneFiles, snapCache))
       setLaneFileCache(new Map(snapCache))
@@ -2090,6 +2150,7 @@ export default function App() {
         entries.push({ edl: baseline, laneFiles: Array.from(baseLaneSet), laneFileCache: [] })
       }
       entries.push({ edl: existingEdl, laneFiles: Array.from(laneSet), laneFileCache: [] })
+      setTimelineModeSafe({ kind: 'manual' })
       setEDL(existingEdl)
       setLaneFiles(laneSet)
       // Current saved EDL wins on folder open. If a pipeline baseline exists,
@@ -2103,22 +2164,7 @@ export default function App() {
       if (firstIdx !== null) focusBodySegment(existingEdl, firstIdx)
       return
     }
-    if (baseline && edlHasTimeline(baseline)) {
-      const laneSet = laneFilesForEdl(baseline)
-      const firstIdx = bodySegs(baseline).length > 0 ? 0 : null
-      setEDL(baseline)
-      setLaneFiles(laneSet)
-      setHistoryDoc({
-        entries: [{ edl: baseline, laneFiles: Array.from(laneSet), laneFileCache: [] }],
-        cursor: 0,
-      })
-      setRunPhase('finished')
-      setInitialLoad(true)
-      if (firstIdx !== null) focusBodySegment(baseline, firstIdx)
-      return
-    }
-
-  }, [setTimelineModeSafe, focusBodySegment])
+  }, [setTimelineModeSafe, focusBodySegment, setTimelineZoom])
 
   useEffect(() => {
     const initialFolder = new URLSearchParams(window.location.search).get('folder')

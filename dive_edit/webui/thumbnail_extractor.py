@@ -15,6 +15,8 @@ import threading
 from pathlib import Path
 from queue import Queue, Empty
 
+from ..utils.process_flags import ffmpeg_executable, ffprobe_executable
+
 
 _queue: "Queue[tuple[Path, Path]]" = Queue()
 _worker_started = False
@@ -53,7 +55,7 @@ def _probe_duration_sec(file_path: Path) -> float:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
+                ffprobe_executable(), "-v", "error",
                 "-show_entries", "format=duration",
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 str(file_path),
@@ -82,7 +84,7 @@ def _extract_one(file_path: Path, job_folder: Path) -> None:
     if target_fps <= 0:
         return
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
+        ffmpeg_executable(), "-y", "-loglevel", "error",
         "-i", str(file_path),
         "-vf", f"fps={target_fps:.6f},scale=w='min(160,iw)':h=-2",
         "-q:v", "5",

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .picker import probe_duration_sec
-from .utils.process_flags import hidden_subprocess_kwargs
+from .utils.process_flags import ffmpeg_executable, hidden_subprocess_kwargs
 
 
 _nvenc_probe_cache: bool | None = None
@@ -152,7 +152,7 @@ def _nvenc_is_functional() -> bool:
     try:
         proc = subprocess.run(
             [
-                "ffmpeg", "-v", "error", "-nostdin",
+                ffmpeg_executable(), "-v", "error", "-nostdin",
                 "-f", "lavfi", "-i", "color=c=black:s=320x180:d=0.1",
                 "-c:v", "h264_nvenc", "-frames:v", "1",
                 "-f", "null", "-",
@@ -310,7 +310,7 @@ def _cut_clip(
         return
 
     cmd = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
         "-nostdin", "-stats_period", "1", "-progress", "pipe:1",
         "-ss", f"{start:.3f}", "-i", str(src),
         "-t", f"{duration:.3f}",
@@ -357,7 +357,7 @@ def _cut_clip(
         else ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
     )
     fallback = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
         "-nostdin", "-stats_period", "1", "-progress", "pipe:1",
         "-ss", f"{start:.3f}", "-i", str(src),
         "-t", f"{duration:.3f}",
@@ -393,7 +393,7 @@ def _cut_clip(
             f"  [source windows] NVENC fallback failed for {dst.name}; retrying libx264",
         )
         cpu_fallback = [
-            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
             "-nostdin", "-stats_period", "1", "-progress", "pipe:1",
             "-ss", f"{start:.3f}", "-i", str(src),
             "-t", f"{duration:.3f}",

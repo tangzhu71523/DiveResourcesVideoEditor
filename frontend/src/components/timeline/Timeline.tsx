@@ -151,6 +151,7 @@ export default function Timeline({
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const scrollCleanupRef = useRef<(() => void) | null>(null)
+  const pendingSourceScrollRef = useRef<Record<string, unknown> | null>(null)
   const attachScrollRef = useCallback((el: HTMLDivElement | null) => {
     scrollCleanupRef.current?.()
     scrollCleanupRef.current = null
@@ -579,55 +580,69 @@ export default function Timeline({
     return () => window.removeEventListener('dive.scrollToCover', handler)
   }, [overlayAnchorGlobalStarts, expandedSecToPx])
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail ?? {}
-      const pipelineWindowIndex = Number(detail.pipelineWindowIndex)
-      if (Number.isFinite(pipelineWindowIndex)) {
-        const hit = lanes
-          .flatMap((lane) => lane.segments.map((item) => ({ lane, ...item })))
-          .find((item) => item.globalIdx === pipelineWindowIndex)
-        const s = scrollRef.current
-        if (!hit || !s) return
-        const anchorPx = expandedSecToPx(hit.lane.offsetSec + Math.max(0, Math.min(hit.lane.duration, hit.seg.start)))
-        const maxLeft = Math.max(0, s.scrollWidth - s.clientWidth)
-        const left = Math.max(0, Math.min(maxLeft, anchorPx - s.clientWidth * 0.25))
-        s.scrollTo({ left, behavior: 'smooth' })
-        if (hit.globalIdx === -1) onSelectIntro?.(false)
-        else onSelectIdx(pipelineWindowIndex, false)
-        return
-      }
-      const requestedFile = String(detail.file ?? '')
-      const requestedName = String(detail.name ?? basename(requestedFile))
-      const requestedBase = basename(requestedFile || requestedName).toLowerCase()
-      const lane = lanes.find((item) =>
-        item.file === requestedFile
-        || item.sourceFile === requestedFile
-        || item.name === requestedName
-        || basename(item.file).toLowerCase() === requestedBase
-        || basename(item.sourceFile).toLowerCase() === requestedBase
-      )
+  const scrollToSourceWindow = useCallback((detail: Record<string, unknown>): boolean => {
+    const pipelineWindowIndex = Number(detail.pipelineWindowIndex)
+    if (Number.isFinite(pipelineWindowIndex)) {
+      const hit = lanes
+        .flatMap((lane) => lane.segments.map((item) => ({ lane, ...item })))
+        .find((item) => item.globalIdx === pipelineWindowIndex)
       const s = scrollRef.current
-      if (!lane || !s) return
-      const rawStart = Number(detail.start ?? 0)
-      const start = Number.isFinite(rawStart) ? rawStart : 0
-      const anchorPx = expandedSecToPx(lane.offsetSec + Math.max(0, Math.min(lane.duration, start)))
+      if (!hit || !s) return false
+      const anchorPx = expandedSecToPx(hit.lane.offsetSec + Math.max(0, Math.min(hit.lane.duration, hit.seg.start)))
       const maxLeft = Math.max(0, s.scrollWidth - s.clientWidth)
       const left = Math.max(0, Math.min(maxLeft, anchorPx - s.clientWidth * 0.25))
       s.scrollTo({ left, behavior: 'smooth' })
-      const end = Number(detail.end ?? NaN)
-      const match = lane.segments.find(({ seg }) =>
-        Math.abs(seg.start - start) < 0.08
-        && (!Number.isFinite(end) || Math.abs(seg.end - end) < 0.08)
-      ) ?? lane.segments.find(({ seg }) => start >= seg.start - 0.08 && start <= seg.end + 0.08)
-      if (match) {
-        if (match.globalIdx === -1) onSelectIntro?.(false)
-        else onSelectIdx(match.globalIdx, false)
-      }
+      if (hit.globalIdx === -1) onSelectIntro?.(false)
+      else onSelectIdx(pipelineWindowIndex, false)
+      return true
+    }
+    const requestedFile = String(detail.file ?? '')
+    const requestedName = String(detail.name ?? basename(requestedFile))
+    const requestedBase = basename(requestedFile || requestedName).toLowerCase()
+    const lane = lanes.find((item) =>
+      item.file === requestedFile
+      || item.sourceFile === requestedFile
+      || item.name === requestedName
+      || basename(item.file).toLowerCase() === requestedBase
+      || basename(item.sourceFile).toLowerCase() === requestedBase
+    )
+    const s = scrollRef.current
+    if (!lane || !s) return false
+    const rawStart = Number(detail.start ?? 0)
+    const start = Number.isFinite(rawStart) ? rawStart : 0
+    const anchorPx = expandedSecToPx(lane.offsetSec + Math.max(0, Math.min(lane.duration, start)))
+    const maxLeft = Math.max(0, s.scrollWidth - s.clientWidth)
+    const left = Math.max(0, Math.min(maxLeft, anchorPx - s.clientWidth * 0.25))
+    s.scrollTo({ left, behavior: 'smooth' })
+    const end = Number(detail.end ?? NaN)
+    const match = lane.segments.find(({ seg }) =>
+      Math.abs(seg.start - start) < 0.08
+      && (!Number.isFinite(end) || Math.abs(seg.end - end) < 0.08)
+    ) ?? lane.segments.find(({ seg }) => start >= seg.start - 0.08 && start <= seg.end + 0.08)
+    if (match) {
+      if (match.globalIdx === -1) onSelectIntro?.(false)
+      else onSelectIdx(match.globalIdx, false)
+    }
+    return true
+  }, [lanes, expandedSecToPx, onSelectIdx, onSelectIntro])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = ((e as CustomEvent).detail ?? {}) as Record<string, unknown>
+      if (!scrollToSourceWindow(detail)) pendingSourceScrollRef.current = detail
     }
     window.addEventListener('dive.scrollToSourceWindow', handler)
     return () => window.removeEventListener('dive.scrollToSourceWindow', handler)
-  }, [lanes, expandedSecToPx, onSelectIdx, onSelectIntro])
+  }, [scrollToSourceWindow])
+
+  useEffect(() => {
+    if (!pendingSourceScrollRef.current) return
+    const id = window.requestAnimationFrame(() => {
+      const detail = pendingSourceScrollRef.current
+      if (detail && scrollToSourceWindow(detail)) pendingSourceScrollRef.current = null
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [scrollToSourceWindow, lanes.length, viewportWidth, totalWidth])
 
   // Playhead — restored (2026-05-07b). Position is OWNED by user drag, not
   // driven by video.currentTime: PreviewBox no longer publishes

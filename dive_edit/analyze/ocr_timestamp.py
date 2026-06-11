@@ -20,7 +20,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from ..utils.process_flags import hidden_subprocess_kwargs
+from ..utils.process_flags import ffmpeg_executable, hidden_subprocess_kwargs
 
 
 @dataclass
@@ -104,7 +104,7 @@ def _extract_frame_at(
         tmp = Path(f.name)
     try:
         cmd = [
-            "ffmpeg", "-v", "error", "-y",
+            ffmpeg_executable(), "-v", "error", "-y",
             "-ss", f"{time_sec:.3f}",
             "-i", str(mp4_path),
             "-frames:v", "1",

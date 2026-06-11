@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from ..utils.gpu import detect_cpu_workers
-from ..utils.process_flags import hidden_subprocess_kwargs
+from ..utils.process_flags import ffmpeg_executable, hidden_subprocess_kwargs
 
 
 @dataclass(frozen=True)
@@ -170,7 +170,7 @@ def _extract_audio(
     clean up underwater comms audio before whisper sees it.
     """
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
+        ffmpeg_executable(), "-y", "-loglevel", "error",
         "-i", str(intro_mp4),
     ]
     if max_sec and max_sec > 0:

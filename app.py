@@ -83,6 +83,11 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
     import ctypes
     from pathlib import Path
 
+    _exe_dir = Path(sys.executable).resolve().parent
+    _bin_dir = _exe_dir / "bin"
+    if _bin_dir.is_dir():
+        os.environ["PATH"] = str(_bin_dir) + os.pathsep + os.environ.get("PATH", "")
+
     def _try_load_cudart() -> bool:
         try:
             ctypes.WinDLL("cudart64_12.dll")
@@ -151,7 +156,6 @@ if sys.platform == "win32" and getattr(sys, "frozen", False):
     if not _cuda_ok and not _force_cpu_requested:
         # Tier 2: legacy bundled-next-to-exe location (setup-gpu.bat
         # against InstallDir, pre-LOCALAPPDATA migration).
-        _exe_dir = Path(sys.executable).resolve().parent
         if _try_register_dir(_exe_dir / "cuda"):
             _cuda_ok = True
             _cuda_source = "bundled"

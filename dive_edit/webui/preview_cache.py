@@ -19,6 +19,8 @@ from pathlib import Path
 from queue import PriorityQueue
 from typing import Optional
 
+from ..utils.process_flags import ffmpeg_executable, ffprobe_executable
+
 _CACHE_SUBDIR = "_diveedit/preview_cache"
 _CACHE_VERSION = 4
 
@@ -70,7 +72,7 @@ def _has_nvenc() -> bool:
         return _nvenc_cached
     try:
         r = subprocess.run(
-            ["ffmpeg", "-hide_banner", "-encoders"],
+            [ffmpeg_executable(), "-hide_banner", "-encoders"],
             capture_output=True,
             timeout=5,
             text=True,
@@ -215,7 +217,7 @@ def _probe_duration_sec(src: str) -> float:
     try:
         r = subprocess.run(
             [
-                "ffprobe",
+                ffprobe_executable(),
                 "-v", "error",
                 "-show_entries", "format=duration",
                 "-of", "default=noprint_wrappers=1:nokey=1",
@@ -273,7 +275,7 @@ def _transcode(src: str) -> None:
         _set_progress(src, 0.0, "transcoding", None)
         bufsize_k = str(int(video_bitrate.rstrip("k")) * 2) + "k"
         cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_executable(), "-y",
             "-i", src,
             "-vf", f"scale=-2:{height}",
             "-filter_threads", "1",

@@ -30,7 +30,7 @@ from ..source_edl import SourceEDLSegment, load_source_edl, resolve_source_segme
 from ..utils.gpu import detect_optimal_workers
 from ..utils.gpu_preflight import run_whisper_preflight
 from ..utils.paths import app_root, is_frozen, list_video_files
-from ..utils.process_flags import hidden_subprocess_kwargs
+from ..utils.process_flags import ffmpeg_executable, ffprobe_executable, hidden_subprocess_kwargs
 from . import preview_cache
 from .runner import manager as run_manager
 
@@ -364,7 +364,7 @@ def _probe_duration_for_import_list(path: Path) -> float:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
+                ffprobe_executable(), "-v", "error",
                 "-show_entries", "format=duration",
                 "-of", "json",
                 str(path),
@@ -376,9 +376,27 @@ def _probe_duration_for_import_list(path: Path) -> float:
             **hidden_subprocess_kwargs(),
         )
         data = json.loads(result.stdout or "{}")
-        return float(data.get("format", {}).get("duration", 0.0))
+        duration = float(data.get("format", {}).get("duration", 0.0))
+        if duration > 0:
+            return duration
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError, json.JSONDecodeError):
-        return 0.0
+        pass
+    try:
+        import av
+
+        with av.open(str(path), mode="r", metadata_errors="ignore") as container:
+            if container.duration:
+                duration = float(container.duration) / 1_000_000.0
+                if duration > 0:
+                    return duration
+            for stream in container.streams.video:
+                if stream.duration and stream.time_base:
+                    duration = float(stream.duration * stream.time_base)
+                    if duration > 0:
+                        return duration
+    except Exception:
+        pass
+    return 0.0
 
 
 # ── Endpoint: job.yaml read/write ─────────────────────────────────────
@@ -1162,7 +1180,7 @@ def api_preview_frame(
     try:
         result = subprocess.run(
             [
-                "ffmpeg", "-ss", f"{offset_sec:.3f}", "-i", str(p),
+                ffmpeg_executable(), "-ss", f"{offset_sec:.3f}", "-i", str(p),
                 "-frames:v", "1", "-q:v", "4", "-f", "image2pipe",
                 "-vcodec", "mjpeg", "-",
             ],
@@ -1199,7 +1217,7 @@ def api_segment_stream(
         raise HTTPException(status_code=400, detail="end must > start")
 
     cmd = [
-        "ffmpeg",
+        ffmpeg_executable(),
         "-ss", f"{start:.3f}",
         "-to", f"{end:.3f}",
         "-i", str(p),

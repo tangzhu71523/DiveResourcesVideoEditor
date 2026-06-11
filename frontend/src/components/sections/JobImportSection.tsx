@@ -92,6 +92,12 @@ export default function JobImportSection({
     ...(manualOutput ? [manualOutput] : []),
     ...pipelineOutputs,
   ], [manualOutput, pipelineOutputs])
+  useEffect(() => {
+    const nextMode = activeCacheToken ? 'cache' : activeRawFile ? 'raw' : null
+    if (!nextMode) return undefined
+    const id = window.setTimeout(() => setListMode(nextMode), 0)
+    return () => window.clearTimeout(id)
+  }, [activeCacheToken, activeRawFile])
   const selectedFileKeys = useMemo(() => {
     const next = new Set<string>()
     for (const key of selectedFileKeysRaw) {

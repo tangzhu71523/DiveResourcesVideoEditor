@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..analyze.edl import EDL, Segment
-from ..utils.process_flags import hidden_subprocess_kwargs
+from ..utils.process_flags import ffmpeg_executable, hidden_subprocess_kwargs
 from .ass_builder import build_overlay_ass, escape_subtitles_path
 from .cover import cover_filter_from_config
 from .overlay import overlay_renderer_from_config, small_text_filter_from_config
@@ -151,7 +151,7 @@ def _nvenc_is_functional() -> bool:
     try:
         proc = subprocess.run(
             [
-                "ffmpeg", "-v", "error", "-nostdin",
+                ffmpeg_executable(), "-v", "error", "-nostdin",
                 "-f", "lavfi", "-i", "color=c=black:s=320x180:d=0.1",
                 "-c:v", "h264_nvenc", "-frames:v", "1",
                 "-f", "null", "-",
@@ -355,7 +355,7 @@ def _concat_chunk_outputs(
             escaped = str(chunk).replace("\\", "/").replace("'", "'\\''")
             fp.write(f"file '{escaped}'\n")
     cmd = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error",
         "-f", "concat", "-safe", "0", "-i", str(concat_path),
         "-c", "copy", "-movflags", "+faststart", str(output_path),
     ]
@@ -779,7 +779,7 @@ def render(
     # to stdout (out_time_ms, frame, fps, progress=continue/end) which we
     # parse live in a thread to emit `[render-progress N/100]` once per
     # second. Without this the bar is stuck at 0% until ffmpeg exits.
-    cmd: list[str] = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-nostats"]
+    cmd: list[str] = [ffmpeg_executable(), "-y", "-hide_banner", "-loglevel", "error", "-nostats"]
     for inp, in_range in zip(inputs, input_ranges):
         cmd += ["-fflags", "+genpts+discardcorrupt", "-err_detect", "ignore_err"]
         cmd += input_prefix

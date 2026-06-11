@@ -21,6 +21,7 @@ from .audio import FileTranscript
 
 from .timeline import FileTimeline
 from ..render.time_config import TimeConfig
+from ..utils.process_flags import ffmpeg_executable, hidden_subprocess_kwargs
 
 
 @dataclass
@@ -940,7 +941,7 @@ def _energy_bursts_from_audio(
         return []
     duration_ms = max(1.0, duration_sec * 1000.0)
     cmd = [
-        "ffmpeg",
+        ffmpeg_executable(),
         "-hide_banner",
         "-nostdin",
         "-stats_period",
@@ -967,6 +968,7 @@ def _energy_bursts_from_audio(
             text=True,
             encoding="utf-8",
             errors="replace",
+            **hidden_subprocess_kwargs(),
         )
     except OSError as exc:
         if logger is not None:
