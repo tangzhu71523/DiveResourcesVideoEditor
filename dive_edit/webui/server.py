@@ -30,7 +30,7 @@ from ..source_edl import SourceEDLSegment, load_source_edl, resolve_source_segme
 from ..utils.gpu import detect_optimal_workers
 from ..utils.gpu_preflight import run_whisper_preflight
 from ..utils.paths import app_root, is_frozen, list_video_files
-from ..utils.process_flags import ffmpeg_executable, ffprobe_executable, hidden_subprocess_kwargs
+from ..utils.process_flags import ffmpeg_executable, ffprobe_executable, hidden_subprocess_kwargs, terminate_tracked_children
 from . import preview_cache
 from .runner import manager as run_manager
 
@@ -54,6 +54,7 @@ app.add_middleware(
 @app.on_event("shutdown")
 def _shutdown_running_jobs() -> None:
     run_manager.cancel_all()
+    terminate_tracked_children()
 
 
 # ── Response models ───────────────────────────────────────────────────

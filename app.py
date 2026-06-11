@@ -15,6 +15,7 @@ right sentinel; see those files for the call sites.
 """
 from __future__ import annotations
 
+import atexit
 import os
 import socket
 import subprocess
@@ -38,6 +39,11 @@ def _patch_hidden_child_windows() -> None:
         if "creationflags" not in kwargs:
             kwargs["creationflags"] = create_no_window
         orig_popen_init(self, *args, **kwargs)
+        try:
+            from dive_edit.utils.process_flags import register_child_process
+            register_child_process(self)
+        except Exception:  # noqa: BLE001
+            pass
 
     hidden_popen_init._diveedit_hidden_child_windows = True  # type: ignore[attr-defined]
     subprocess.Popen.__init__ = hidden_popen_init  # type: ignore[method-assign]
@@ -55,6 +61,11 @@ def _patch_hidden_child_windows() -> None:
 # covers the entire stdlib surface.
 if sys.platform == "win32" and getattr(sys, "frozen", False):
     _patch_hidden_child_windows()
+    try:
+        from dive_edit.utils.process_flags import terminate_tracked_children
+        atexit.register(terminate_tracked_children)
+    except Exception:  # noqa: BLE001
+        pass
 
     # stderr/stdout safety net
     # PyInstaller's windowed bootloader (runw.exe) sometimes leaves
@@ -528,6 +539,11 @@ def _run_gui() -> int:
         try:
             from dive_edit.webui.runner import manager as run_manager
             run_manager.cancel_all()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from dive_edit.utils.process_flags import terminate_tracked_children
+            terminate_tracked_children()
         except Exception:  # noqa: BLE001
             pass
     return 0
